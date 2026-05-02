@@ -186,84 +186,183 @@ def validate_atomic_positions(atomic_positions_text, expected_nat, atomic_specie
 
     return errors, warnings
 
-
 def validate_k_points(k_points_type, k_points_text):
     """
-    Validate K_POINTS section.
+    Validate K_POINTS section based on official Quantum ESPRESSO pw.x syntax.
 
-    For automatic:
-    Expected format: kx ky kz sx sy sz
-    Example: 4 4 4 0 0 0
+    Official K_POINTS types:
+    - gamma
+    - automatic
+    - crystal
+    - tpiba
+    - crystal_b
+    - tpiba_b
+    - crystal_c
+    - tpiba_c
 
-    For gamma:
-    Usually no extra values are needed.
-
-    For crystal/tpiba:
-    We allow multiline values, but do basic non-empty checking.
+    Rules:
+    - gamma: no extra values
+    - automatic: exactly 6 integers -> nk1 nk2 nk3 sk1 sk2 sk3
+    - other types: first line is nks, followed by nks k-point rows
     """
     errors = []
     warnings = []
 
+    valid_k_types = [
+        "gamma",
+        "automatic",
+        "crystal",
+        "tpiba",
+        "crystal_b",
+        "tpiba_b",
+        "crystal_c",
+        "tpiba_c",
+    ]
+
+    if k_points_type not in valid_k_types:
+        errors.append(
+            f"Invalid K_POINTS type '{k_points_type}'. "
+            f"Valid options are: {', '.join(valid_k_types)}."
+        )
+        return errors, warnings
+
     text = k_points_text.strip()
+
+    # -----------------------------
+    # K_POINTS gamma
+    # -----------------------------
+    if k_points_type == "gamma":
+        if text:
+            warnings.append(
+                "K_POINTS gamma usually does not need extra values. "
+                "The generated file will use only: K_POINTS gamma."
+            )
+
+        return errors, warnings
+
+    # -----------------------------
+    # K_POINTS automatic
+    # -----------------------------
     if k_points_type == "automatic":
         parts = text.split()
 
         if len(parts) != 6:
             errors.append(
-                "K_POINTS automatic should contain exactly 6 values: kx ky kz sx sy sz."
+                "K_POINTS automatic should contain exactly 6 integer values: "
+                "nk1 nk2 nk3 sk1 sk2 sk3."
             )
-        else:
-            values = []
+            return errors, warnings
 
-            for value in parts:
-                try:
-                    values.append(int(value))
-                except ValueError:
-                    errors.append(
-                        f"K_POINTS automatic value '{value}' should be an integer."
-                    )
+        values = []
 
-            if len(values) == 6:
-                k1, k2, k3, s1, s2, s3 = values
-
-                if k1 <= 0 or k2 <= 0 or k3 <= 0:
-                    errors.append(
-                        "K_POINTS automatic grid values kx, ky, kz should be positive integers."
-                    )
-
-                for shift in [s1, s2, s3]:
-                    if shift not in [0, 1]:
-                        errors.append(
-                            "K_POINTS automatic shift values sx, sy, sz should be only 0 or 1."
-                        )
-                        break
-
-    elif k_points_type == "gamma":
-        if text:
-            warnings.append(
-                "K_POINTS gamma usually does not need extra values. You can leave the K_POINTS box empty."
-            )
-
-    elif k_points_type in ["crystal", "tpiba"]:
-        lines = [line.strip() for line in text.splitlines() if line.strip()]
-
-        if len(lines) == 0:
-            errors.append(
-                f"K_POINTS {k_points_type} requires multiline k-point data."
-            )
-        else:
+        for value in parts:
             try:
-                number_of_kpoints = int(lines[0].split()[0])
-                actual_kpoint_lines = len(lines) - 1
-
-                if actual_kpoint_lines != number_of_kpoints:
-                    errors.append(
-                        f"K_POINTS {k_points_type}: first line says {number_of_kpoints} k-points, but {actual_kpoint_lines} k-point line(s) were entered."
-                    )
+                values.append(int(value))
             except ValueError:
                 errors.append(
-                    f"K_POINTS {k_points_type}: first line should start with the number of k-points."
+                    f"K_POINTS automatic value '{value}' should be an integer."
                 )
+
+        if errors:
+            return errors, warnings
+
+        nk1, nk2, nk3, sk1, sk2, sk3 = values
+
+        if nk1 <= 0 or nk2 <= 0 or nk3 <= 0:
+            errors.append(
+                "K_POINTS automatic grid values nk1, nk2, nk3 must be positive integers."
+            )
+
+        for shift_name, shift_value in [
+            ("sk1", sk1),
+            ("sk2", sk2),
+            ("sk3", sk3),
+        ]:
+            if shift_value not in [0, 1]:
+                errors.append(
+                    f"K_POINTS automatic shift value {shift_name} must be 0 or 1."
+                )
+
+        return errors, warnings
+
+    # -----------------------------
+    # K_POINTS listed modes
+    # crystal, tpiba, crystal_b, tpiba_b, crystal_c, tpiba_c
+    # -----------------------------
+    listed_k_types = [
+        "crystal",
+        "tpiba",
+        "crystal_b",
+        "tpiba_b",
+        "crystal_c",
+        "tpiba_c",
+    ]
+
+    if k_points_type in listed_k_types:
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+
+        if not lines:
+            errors.append(
+                f"K_POINTS {k_points_type} requires the first line to be the number of k-points."
+            )
+            return errors, warnings
+
+        try:
+            nks = int(lines[0].split()[0])
+        except ValueError:
+            errors.append(
+                f"K_POINTS {k_points_type}: first line should start with the number of k-points."
+            )
+            return errors, warnings
+
+        if nks <= 0:
+            errors.append(
+                f"K_POINTS {k_points_type}: number of k-points must be a positive integer."
+            )
+            return errors, warnings
+
+        kpoint_lines = lines[1:]
+
+        if len(kpoint_lines) != nks:
+            errors.append(
+                f"K_POINTS {k_points_type}: first line says {nks} k-points, "
+                f"but {len(kpoint_lines)} k-point line(s) were entered."
+            )
+
+        # For crystal_c and tpiba_c, QE documentation indicates contour-plot usage.
+        # A practical strict check is that nks should be 3 for these modes.
+        if k_points_type in ["crystal_c", "tpiba_c"] and nks != 3:
+            errors.append(
+                f"K_POINTS {k_points_type} is used for contour plots and should have exactly 3 k-points."
+            )
+
+        for i, line in enumerate(kpoint_lines, start=1):
+            parts = line.split()
+
+            if len(parts) < 4:
+                errors.append(
+                    f"K_POINTS {k_points_type} line {i} should contain at least "
+                    "4 values: kx ky kz weight."
+                )
+                continue
+
+            # Check first four values are numeric
+            for value in parts[:4]:
+                try:
+                    float(value)
+                except ValueError:
+                    errors.append(
+                        f"K_POINTS {k_points_type} line {i}: '{value}' is not a valid number."
+                    )
+
+        # Helpful warning for band-structure modes
+        if k_points_type in ["crystal_b", "tpiba_b"]:
+            warnings.append(
+                f"K_POINTS {k_points_type} is commonly used for band-structure paths. "
+                "Make sure the k-point path follows the QE band-path format."
+            )
+
+        return errors, warnings
 
     return errors, warnings
 
