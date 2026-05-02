@@ -295,6 +295,79 @@ def validate_system_settings(ibrav, cell_parameters_text, ecutwfc, ecutrho, calc
 
     return errors, warnings
 
+
+def get_qe_block_title(line):
+    """
+    Identify QE block/section title from a line.
+    """
+    stripped = line.strip()
+
+    if stripped.startswith("&CONTROL"):
+        return "CONTROL"
+    if stripped.startswith("&SYSTEM"):
+        return "SYSTEM"
+    if stripped.startswith("&ELECTRONS"):
+        return "ELECTRONS"
+    if stripped.startswith("&IONS"):
+        return "IONS"
+    if stripped.startswith("&CELL"):
+        return "CELL"
+
+    for card_name in [
+        "ATOMIC_SPECIES",
+        "CELL_PARAMETERS",
+        "ATOMIC_POSITIONS",
+        "K_POINTS",
+    ]:
+        if stripped.startswith(card_name):
+            return card_name
+
+    return None
+
+
+def split_qe_input_into_blocks(qe_text):
+    """
+    Split generated QE input into named blocks.
+    """
+    blocks = {}
+    current_title = None
+    current_lines = []
+
+    for line in qe_text.splitlines():
+        detected_title = get_qe_block_title(line)
+
+        if detected_title is not None:
+            if current_title is not None:
+                blocks[current_title] = "\n".join(current_lines).strip()
+
+            current_title = detected_title
+            current_lines = [line]
+        else:
+            current_lines.append(line)
+
+    if current_title is not None:
+        blocks[current_title] = "\n".join(current_lines).strip()
+
+    return blocks
+
+
+def move_item(items, index, direction):
+    """
+    Move item up or down in a list.
+    direction = -1 means up
+    direction = 1 means down
+    """
+    new_items = items.copy()
+    new_index = index + direction
+
+    if new_index < 0 or new_index >= len(new_items):
+        return new_items
+
+    new_items[index], new_items[new_index] = new_items[new_index], new_items[index]
+
+    return new_items
+
+
 st.set_page_config(
     page_title="Quantum ESPRESSO Input Generator",
     page_icon="⚛️",
@@ -1071,11 +1144,95 @@ if validation_warnings:
 
 st.divider()
 
+# -----------------------------
+# SHOW PREVIEW
+# -----------------------------
+
 st.header("9. 📄 Generated input preview")
 
-st.caption("Preview of the Quantum ESPRESSO input file that will be downloaded.")
+st.caption(
+    "You can reorder selected card sections using the arrow buttons, then manually edit the final input before downloading."
+)
 
-st.code(qe_input, language="text")
+st.warning(
+    "Manual edits and section reordering are allowed. Make sure the final input follows the official QE order and syntax."
+)
+
+qe_blocks = split_qe_input_into_blocks(qe_input)
+
+fixed_namelist_order = [
+    "CONTROL",
+    "SYSTEM",
+    "ELECTRONS",
+    "IONS",
+    "CELL",
+]
+
+movable_card_sections = [
+    section
+    for section in [
+        "ATOMIC_SPECIES",
+        "CELL_PARAMETERS",
+        "ATOMIC_POSITIONS",
+        "K_POINTS",
+    ]
+    if section in qe_blocks
+]
+
+if "card_order" not in st.session_state:
+    st.session_state.card_order = movable_card_sections
+
+if "last_qe_input" not in st.session_state:
+    st.session_state.last_qe_input = qe_input
+
+if st.session_state.last_qe_input != qe_input:
+    st.session_state.card_order = movable_card_sections
+    st.session_state.last_qe_input = qe_input
+
+st.subheader("Move card sections up or down")
+
+for i, section_name in enumerate(st.session_state.card_order):
+    col1, col2, col3 = st.columns([1, 6, 1])
+
+    with col1:
+        if st.button("▲", key=f"move_up_{section_name}", disabled=(i == 0)):
+            st.session_state.card_order = move_item(
+                st.session_state.card_order,
+                i,
+                -1,
+            )
+            st.rerun()
+
+    with col2:
+        st.write(f"**{i + 1}. {section_name}**")
+
+    with col3:
+        if st.button("▼", key=f"move_down_{section_name}", disabled=(i == len(st.session_state.card_order) - 1)):
+            st.session_state.card_order = move_item(
+                st.session_state.card_order,
+                i,
+                1,
+            )
+            st.rerun()
+
+ordered_blocks = []
+
+for section_name in fixed_namelist_order:
+    if section_name in qe_blocks:
+        ordered_blocks.append(qe_blocks[section_name])
+
+for section_name in st.session_state.card_order:
+    if section_name in qe_blocks:
+        ordered_blocks.append(qe_blocks[section_name])
+
+reordered_qe_input = "\n\n".join(ordered_blocks).strip() + "\n"
+
+final_qe_input = st.text_area(
+    "Editable final Quantum ESPRESSO input",
+    value=reordered_qe_input,
+    height=500,
+    help="This exact text will be downloaded.",
+)
 
 st.divider()
 
@@ -1103,7 +1260,7 @@ if download_disabled:
 
 st.download_button(
     label=f"Download {output_file_name}",
-    data=qe_input,
+    data=final_qe_input,
     file_name=output_file_name,
     mime="text/plain",
     key="download_qe_input_file",
