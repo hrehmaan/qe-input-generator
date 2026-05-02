@@ -91,36 +91,63 @@ def validate_cell_parameters(cell_parameters_text):
 
     return errors
 
-
-def validate_atomic_positions(atomic_positions_text, expected_nat):
+def validate_atomic_positions(atomic_positions_text, expected_nat, atomic_species_text):
     """
     Validate ATOMIC_POSITIONS section.
-    Each valid line should have:
+
+    Standard format:
     Element x y z
+
+    Optional QE format with fixed/free coordinates:
+    Element x y z if_pos1 if_pos2 if_pos3
 
     Example:
     Ba 2.0038408200 2.0038408200 2.0038408200
+    O  0.0000000000 0.0000000000 2.0038408200 1 1 0
     """
     errors = []
+    warnings = []
 
-    lines = [line.strip() for line in atomic_positions_text.splitlines() if line.strip()]
+    position_lines = [
+        line.strip()
+        for line in atomic_positions_text.splitlines()
+        if line.strip()
+    ]
 
-    if len(lines) != expected_nat:
+    species_lines = [
+        line.strip()
+        for line in atomic_species_text.splitlines()
+        if line.strip()
+    ]
+
+    species_symbols = set()
+
+    for line in species_lines:
+        parts = line.split()
+        if parts:
+            species_symbols.add(parts[0])
+
+    if len(position_lines) != expected_nat:
         errors.append(
-            f"nat is {expected_nat}, but ATOMIC_POSITIONS contains {len(lines)} non-empty line(s)."
+            f"nat is {expected_nat}, but ATOMIC_POSITIONS contains {len(position_lines)} non-empty line(s)."
         )
 
-    for i, line in enumerate(lines, start=1):
+    for i, line in enumerate(position_lines, start=1):
         parts = line.split()
 
-        if len(parts) != 4:
+        if len(parts) not in [4, 7]:
             errors.append(
-                f"ATOMIC_POSITIONS line {i} should contain 4 values: Element x y z."
+                f"ATOMIC_POSITIONS line {i} should contain either 4 values: Element x y z, or 7 values: Element x y z if_pos1 if_pos2 if_pos3."
             )
             continue
 
         element = parts[0]
-        coordinates = parts[1:]
+        coordinates = parts[1:4]
+
+        if element not in species_symbols:
+            errors.append(
+                f"ATOMIC_POSITIONS line {i}: element '{element}' is not listed in ATOMIC_SPECIES."
+            )
 
         for value in coordinates:
             try:
@@ -130,7 +157,17 @@ def validate_atomic_positions(atomic_positions_text, expected_nat):
                     f"ATOMIC_POSITIONS line {i}: coordinate '{value}' is not a valid number."
                 )
 
-    return errors
+        if len(parts) == 7:
+            flags = parts[4:7]
+
+            for flag in flags:
+                if flag not in ["0", "1"]:
+                    errors.append(
+                        f"ATOMIC_POSITIONS line {i}: if_pos values should be only 0 or 1."
+                    )
+                    break
+
+    return errors, warnings
 
 
 def validate_k_points(k_points_type, k_points_text):
@@ -151,7 +188,6 @@ def validate_k_points(k_points_type, k_points_text):
     warnings = []
 
     text = k_points_text.strip()
-
     if k_points_type == "automatic":
         parts = text.split()
 
@@ -160,13 +196,30 @@ def validate_k_points(k_points_type, k_points_text):
                 "K_POINTS automatic should contain exactly 6 values: kx ky kz sx sy sz."
             )
         else:
+            values = []
+
             for value in parts:
                 try:
-                    int(value)
+                    values.append(int(value))
                 except ValueError:
                     errors.append(
                         f"K_POINTS automatic value '{value}' should be an integer."
                     )
+
+            if len(values) == 6:
+                k1, k2, k3, s1, s2, s3 = values
+
+                if k1 <= 0 or k2 <= 0 or k3 <= 0:
+                    errors.append(
+                        "K_POINTS automatic grid values kx, ky, kz should be positive integers."
+                    )
+
+                for shift in [s1, s2, s3]:
+                    if shift not in [0, 1]:
+                        errors.append(
+                            "K_POINTS automatic shift values sx, sy, sz should be only 0 or 1."
+                        )
+                        break
 
     elif k_points_type == "gamma":
         if text:
@@ -194,6 +247,35 @@ def validate_k_points(k_points_type, k_points_text):
                 errors.append(
                     f"K_POINTS {k_points_type}: first line should start with the number of k-points."
                 )
+
+    return errors, warnings
+
+def validate_system_settings(ibrav, cell_parameters_text, ecutwfc, ecutrho, calculation):
+    """
+    Validate or warn about SYSTEM and calculation settings.
+    """
+    errors = []
+    warnings = []
+
+    if ibrav != 0 and cell_parameters_text.strip():
+        warnings.append(
+            "CELL_PARAMETERS is normally used when ibrav = 0. Since ibrav is not 0, check whether CELL_PARAMETERS is needed."
+        )
+
+    if ecutrho < 4 * ecutwfc:
+        warnings.append(
+            "ecutrho is less than 4 × ecutwfc. For many calculations, ecutrho is commonly at least 4 × ecutwfc, depending on pseudopotentials."
+        )
+
+    if calculation == "relax":
+        warnings.append(
+            "For calculation = 'relax', Quantum ESPRESSO commonly uses the &IONS namelist. This GUI does not include &IONS yet."
+        )
+
+    if calculation == "vc-relax":
+        warnings.append(
+            "For calculation = 'vc-relax', Quantum ESPRESSO commonly uses &IONS and &CELL namelists. This GUI does not include them yet."
+        )
 
     return errors, warnings
 
@@ -554,23 +636,34 @@ cell_errors = validate_cell_parameters(
     cell_parameters_text=cell_parameters,
 )
 
-position_errors = validate_atomic_positions(
+position_errors, position_warnings = validate_atomic_positions(
     atomic_positions_text=atomic_positions,
     expected_nat=nat,
+    atomic_species_text=atomic_species,
 )
 
 kpoint_errors, kpoint_warnings = validate_k_points(
     k_points_type=k_points_type,
     k_points_text=k_points,
 )
+system_errors, system_warnings = validate_system_settings(
+    ibrav=ibrav,
+    cell_parameters_text=cell_parameters,
+    ecutwfc=ecutwfc,
+    ecutrho=ecutrho,
+    calculation=calculation,
+)
 
 validation_errors.extend(species_errors)
 validation_errors.extend(cell_errors)
 validation_errors.extend(position_errors)
 validation_errors.extend(kpoint_errors)
+validation_errors.extend(system_errors)
 
 validation_warnings.extend(species_warnings)
+validation_warnings.extend(position_warnings)
 validation_warnings.extend(kpoint_warnings)
+validation_warnings.extend(system_warnings)
 
 
 # -----------------------------
