@@ -34,11 +34,17 @@ def generate_qe_input(
     mixing_mode,
     mixing_beta,
     diagonalization,
+    include_ions,
+    ion_dynamics,
+    include_cell,
+    cell_dynamics,
+    press,
+    cell_dofree,
     atomic_species,
     cell_parameters,
     atomic_positions,
     k_points_type,
-    k_points,
+    k_points,   
 ):
     """
     Generate a Quantum ESPRESSO pw.x input file as text.
@@ -48,6 +54,21 @@ def generate_qe_input(
 
     tstress_value = bool_to_qe(tstress)
     tprnfor_value = bool_to_qe(tprnfor)
+
+    ions_section = ""
+    if include_ions:
+        ions_section = f"""&IONS
+    ion_dynamics = '{ion_dynamics}'
+/
+"""
+    cell_section = ""
+    if include_cell:
+        cell_section = f"""&CELL
+    cell_dynamics = '{cell_dynamics}'
+    press = {press}
+    cell_dofree = '{cell_dofree}'
+/
+"""
 
     qe_input = f"""&CONTROL
     calculation = '{calculation}'
@@ -73,7 +94,7 @@ def generate_qe_input(
     mixing_beta = {mixing_beta}
     diagonalization = '{diagonalization}'
 /
-ATOMIC_SPECIES
+{ions_section}{cell_section}ATOMIC_SPECIES
 {atomic_species}
 
 CELL_PARAMETERS angstrom

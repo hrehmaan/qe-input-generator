@@ -269,12 +269,12 @@ def validate_system_settings(ibrav, cell_parameters_text, ecutwfc, ecutrho, calc
 
     if calculation == "relax":
         warnings.append(
-            "For calculation = 'relax', Quantum ESPRESSO commonly uses the &IONS namelist. This GUI does not include &IONS yet."
+            "For calculation = 'relax', the &IONS section is included. Check that ion_dynamics is suitable for your calculation."
         )
 
     if calculation == "vc-relax":
         warnings.append(
-            "For calculation = 'vc-relax', Quantum ESPRESSO commonly uses &IONS and &CELL namelists. This GUI does not include them yet."
+            "For calculation = 'vc-relax', the &IONS and &CELL sections are included. Check that ion_dynamics, cell_dynamics, pressure, and cell_dofree are suitable."
         )
 
     return errors, warnings
@@ -498,6 +498,66 @@ with col3:
     )
 
 st.divider()
+
+# -----------------------------
+# IONS AND CELL SECTION
+# -----------------------------
+
+st.header("4. IONS and CELL section")
+
+include_ions = calculation in ["relax", "vc-relax"]
+include_cell = calculation == "vc-relax"
+
+if include_ions:
+    st.info("The &IONS section is enabled because calculation is set to relax or vc-relax.")
+
+    ion_dynamics = st.selectbox(
+        "ion_dynamics",
+        ["bfgs", "damp", "verlet"],
+        index=0,
+        help="Ion dynamics method used during structural relaxation.",
+    )
+else:
+    st.caption("The &IONS section is not needed for the selected calculation type.")
+    ion_dynamics = "bfgs"
+
+if include_cell:
+    st.info("The &CELL section is enabled because calculation is set to vc-relax.")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        cell_dynamics = st.selectbox(
+            "cell_dynamics",
+            ["bfgs", "damp-pr", "damp-w"],
+            index=0,
+            help="Cell dynamics method used during variable-cell relaxation.",
+        )
+
+    with col2:
+        press = st.number_input(
+            "press",
+            value=0.0,
+            step=0.5,
+            help="Target pressure in kbar.",
+        )
+
+    with col3:
+        cell_dofree = st.selectbox(
+            "cell_dofree",
+            ["all", "x", "y", "z", "xy", "xz", "yz", "xyz", "shape", "volume", "2Dxy"],
+            index=0,
+            help="Cell degrees of freedom to relax.",
+        )
+else:
+    st.caption("The &CELL section is not needed for the selected calculation type.")
+    cell_dynamics = "bfgs"
+    press = 0.0
+    cell_dofree = "all"
+
+st.divider()
+
+
 # -----------------------------
 # ATOMIC SPECIES
 # -----------------------------
@@ -612,6 +672,12 @@ qe_input = generate_qe_input(
     mixing_mode=mixing_mode,
     mixing_beta=mixing_beta,
     diagonalization=diagonalization,
+    include_ions=include_ions,
+    ion_dynamics=ion_dynamics,
+    include_cell=include_cell,
+    cell_dynamics=cell_dynamics,
+    press=press,
+    cell_dofree=cell_dofree,
     atomic_species=atomic_species,
     cell_parameters=cell_parameters,
     atomic_positions=atomic_positions,
