@@ -204,13 +204,47 @@ st.set_page_config(
 )
 
 
-st.title("Quantum ESPRESSO pw.x Input Generator")
+st.sidebar.title("⚛️ QE Input Generator")
 
-st.write(
+st.sidebar.markdown(
     """
-    This GUI helps you generate a Quantum ESPRESSO `pw.x` input file.
-    Fill in the values below and download the generated `espresso.pwi` file.
+    This app generates Quantum ESPRESSO `pw.x` input files.
+
+    **Workflow**
+    1. Fill the input sections
+    2. Check validation messages
+    3. Preview the generated file
+    4. Download the file
+
+    **Official documentation**
+
+    [Quantum ESPRESSO INPUT_PW](https://www.quantum-espresso.org/Doc/INPUT_PW.html)
     """
+)
+
+st.sidebar.info(
+    "This tool checks common formatting mistakes, but it does not guarantee physical correctness."
+)
+
+st.title("⚛️ Quantum ESPRESSO pw.x Input Generator")
+
+st.markdown(
+    """
+    <div style="
+        padding: 18px;
+        border-radius: 12px;
+        background-color: #f5f7fa;
+        border: 1px solid #e1e4e8;
+        margin-bottom: 25px;
+    ">
+        <h4 style="margin-top: 0;">Generate Quantum ESPRESSO input files without writing them manually</h4>
+        <p style="margin-bottom: 0;">
+            Fill in the GUI fields below, validate the input structure, preview the generated 
+            <code>.pwi</code> file, and download it for use with <code>pw.x</code>.
+        </p>
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 
 
@@ -218,17 +252,17 @@ st.write(
 # CONTROL SECTION
 # -----------------------------
 
-st.header("1. CONTROL section")
+with st.expander("1. CONTROL section", expanded=True):
 
-col1, col2, col3 = st.columns(3)
+    col1, col2, col3 = st.columns(3)
 
-with col1:
-    calculation = st.selectbox(
-        "calculation",
-        ["scf", "relax", "vc-relax", "nscf", "bands"],
-        index=0,
-        help="Type of calculation to perform.",
-    )
+    with col1:
+        calculation = st.selectbox(
+            "calculation",
+            ["scf", "relax", "vc-relax", "nscf", "bands"],
+            index=0,
+            help="Type of calculation to perform.",
+        )
 
     verbosity = st.selectbox(
         "verbosity",
@@ -264,7 +298,7 @@ with col3:
         help="Calculate and print forces.",
     )
 
-
+st.divider()
 # -----------------------------
 # SYSTEM SECTION
 # -----------------------------
@@ -346,7 +380,7 @@ with col3:
         help="Number of atoms in the unit cell.",
     )
 
-
+st.divider()
 # -----------------------------
 # ELECTRONS SECTION
 # -----------------------------
@@ -381,7 +415,7 @@ with col3:
         help="Diagonalization method.",
     )
 
-
+st.divider()
 # -----------------------------
 # ATOMIC SPECIES
 # -----------------------------
@@ -401,7 +435,7 @@ st.caption(
     "Example format: `Ba 137.327 Ba.upf`"
 )
 
-
+st.divider()
 # -----------------------------
 # CELL PARAMETERS
 # -----------------------------
@@ -421,7 +455,7 @@ st.caption(
     "Use three rows. Each row represents one lattice vector."
 )
 
-
+st.divider()
 # -----------------------------
 # ATOMIC POSITIONS
 # -----------------------------
@@ -443,7 +477,7 @@ st.caption(
     "Example format: `Ba 2.0038408200 2.0038408200 2.0038408200`"
 )
 
-
+st.divider()
 # -----------------------------
 # K POINTS
 # -----------------------------
@@ -472,6 +506,7 @@ k_points = st.text_area(
     ),
 )
 
+st.divider()
 # -----------------------------
 # GENERATE INPUT FILE
 # -----------------------------
@@ -552,29 +587,34 @@ st.markdown(
 )
 
 if validation_errors:
-    st.error("Please fix the following error(s) before using the input file:")
+    st.error("Some required input rules are not satisfied. Please fix the following error(s):")
 
     for error in validation_errors:
         st.write(f"❌ {error}")
 else:
-    st.success("No critical errors detected.")
+    st.success("No critical formatting errors detected. The file structure looks consistent.")
 
 if validation_warnings:
-    st.warning("Please review the following warning(s):")
+    st.warning("The input can still be generated, but please review these warning(s):")
 
     for warning in validation_warnings:
         st.write(f"⚠️ {warning}")
 
-st.subheader("Generated input preview")
+st.divider()
+
+st.header("9. 📄 Generated input preview")
+
+st.caption("Preview of the Quantum ESPRESSO input file that will be downloaded.")
 
 st.code(qe_input, language="text")
 
+st.divider()
 # -----------------------------
 # DOWNLOAD FILE
 # -----------------------------
 
-st.header("9. Download file")
-
+st.header("10. ⬇️ Download file")
+st.caption("Choose the output file name and download the generated input file.")
 output_file_name = st.text_input(
     "Output file name, e.g. espresso.pwi",
     value="espresso.pwi",
@@ -598,4 +638,15 @@ st.download_button(
     mime="text/plain",
     key="download_qe_input_file",
     disabled=download_disabled,
+)
+
+st.divider()
+
+st.markdown(
+    """
+    <div style="text-align: center; color: gray; font-size: 0.9em;">
+        Built for generating beginner-friendly Quantum ESPRESSO pw.x input files.
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
