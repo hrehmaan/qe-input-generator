@@ -19,6 +19,7 @@ https://qe-input-pwi-generator.streamlit.app/
 No installation is required.  
 No coding is required.  
 No repository download is required.
+
 The validation is based on common Quantum ESPRESSO pw.x input syntax from the official INPUT_PW documentation. It checks basic formatting and consistency, but it does not implement every possible Quantum ESPRESSO input rule.
 ## What this app does
 
