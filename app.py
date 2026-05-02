@@ -1,5 +1,3 @@
-import streamlit as st
-
 
 import streamlit as st
 
@@ -329,36 +327,20 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-
 # -----------------------------
 # CONTROL SECTION
 # -----------------------------
 
-with st.expander("1. CONTROL section", expanded=True):
+st.header("1. CONTROL section")
 
-    col1, col2, col3 = st.columns(3)
+col1, col2 = st.columns(2)
 
-    with col1:
-        calculation = st.selectbox(
-            "calculation",
-            ["scf", "relax", "vc-relax", "nscf", "bands"],
-            index=0,
-            help="Type of calculation to perform.",
-        )
-
-    verbosity = st.selectbox(
-        "verbosity",
-        ["high", "low"],
+with col1:
+    calculation = st.selectbox(
+        "calculation",
+        ["scf", "relax", "vc-relax", "nscf", "bands"],
         index=0,
-        help="Amount of output printed by Quantum ESPRESSO.",
-    )
-
-with col2:
-    restart_mode = st.selectbox(
-        "restart_mode",
-        ["from_scratch", "restart"],
-        index=0,
-        help="Use from_scratch for a new calculation.",
+        help="Type of calculation to perform.",
     )
 
     pseudo_dir = st.text_input(
@@ -367,45 +349,87 @@ with col2:
         help="Folder where pseudopotential files are located.",
     )
 
-with st.expander("Advanced CONTROL settings", expanded=False):
-    col1, col2, col3 = st.columns(3)
+with col2:
+    prefix = st.text_input(
+        "prefix",
+        value="qe",
+        help="Prefix used for output files.",
+    )
 
-    with col1:
-        prefix = st.text_input(
-            "prefix",
-            value="qe",
-            help="Prefix used for output files.",
+    outdir = st.text_input(
+        "outdir",
+        value="./tmp/",
+        help="Temporary directory for QE output files.",
+    )
+
+
+control_params = {
+    "calculation": calculation,
+    "pseudo_dir": pseudo_dir,
+    "prefix": prefix,
+    "outdir": outdir,
+}
+
+
+with st.expander("Optional CONTROL parameters", expanded=False):
+    use_verbosity = st.checkbox("Add verbosity")
+    if use_verbosity:
+        control_params["verbosity"] = st.selectbox(
+            "verbosity",
+            ["low", "high"],
+            index=1,
+            help="Amount of output printed by Quantum ESPRESSO.",
         )
 
-    with col2:
-        outdir = st.text_input(
-            "outdir",
-            value="./tmp/",
-            help="Temporary directory for QE output files.",
-        )
-
-    with col3:
-        disk_io = st.selectbox(
-            "disk_io",
-            ["default", "low", "medium", "high", "none"],
+    use_restart_mode = st.checkbox("Add restart_mode")
+    if use_restart_mode:
+        control_params["restart_mode"] = st.selectbox(
+            "restart_mode",
+            ["from_scratch", "restart"],
             index=0,
-            help="Controls how much data QE writes to disk.",
+            help="Use from_scratch for a new calculation.",
         )
 
-with col3:
-    tstress = st.checkbox(
-        "tstress",
-        value=True,
-        help="Calculate and print stress.",
-    )
+    use_max_seconds = st.checkbox("Add max_seconds")
+    if use_max_seconds:
+        control_params["max_seconds"] = st.number_input(
+            "max_seconds",
+            min_value=1.0,
+            value=3600.0,
+            step=100.0,
+            help="Maximum wall time in seconds.",
+        )
 
-    tprnfor = st.checkbox(
-        "tprnfor",
-        value=True,
-        help="Calculate and print forces.",
-    )
+    use_wf_collect = st.checkbox("Add wf_collect")
+    if use_wf_collect:
+        st.warning(
+            "wf_collect is obsolete in recent Quantum ESPRESSO versions. Use only if you know you need it."
+        )
+        control_params["wf_collect"] = st.checkbox(
+            "wf_collect value",
+            value=True,
+        )
+
+    use_etot_conv_thr = st.checkbox("Add etot_conv_thr")
+    if use_etot_conv_thr:
+        control_params["etot_conv_thr"] = st.number_input(
+            "etot_conv_thr",
+            value=1.0e-4,
+            format="%.1e",
+            help="Total energy convergence threshold.",
+        )
+
+    use_forc_conv_thr = st.checkbox("Add forc_conv_thr")
+    if use_forc_conv_thr:
+        control_params["forc_conv_thr"] = st.number_input(
+            "forc_conv_thr",
+            value=1.0e-3,
+            format="%.1e",
+            help="Force convergence threshold.",
+        )
 
 st.divider()
+
 # -----------------------------
 # SYSTEM SECTION
 # -----------------------------
@@ -415,68 +439,11 @@ st.header("2. SYSTEM section")
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    ecutwfc = st.number_input(
-        "ecutwfc",
-        min_value=0.0,
-        value=30.0,
-        step=5.0,
-        help="Plane-wave kinetic energy cutoff.",
-    )
-
-    ecutrho = st.number_input(
-        "ecutrho",
-        min_value=0.0,
-        value=240.0,
-        step=10.0,
-        help="Charge density cutoff.",
-    )
-
     ibrav = st.number_input(
         "ibrav",
         value=0,
         step=1,
         help="Bravais lattice index. Use 0 when CELL_PARAMETERS are given manually.",
-    )
-
-with col2:
-    occupations = st.selectbox(
-        "occupations",
-        ["smearing", "fixed"],
-        index=0,
-        help="Use smearing for metals or small-gap systems; fixed for insulators.",
-    )
-
-    smearing = st.selectbox(
-        "smearing",
-        ["mp", "gaussian", "mv", "fd"],
-        index=0,
-        help="Smearing type.",
-    )
-
-    degauss = st.number_input(
-        "degauss",
-        min_value=0.0,
-        value=0.001,
-        step=0.001,
-        format="%.6f",
-        help="Smearing width.",
-    )
-
-with col3:
-    nspin = st.number_input(
-        "nspin",
-        min_value=1,
-        value=1,
-        step=1,
-        help="Spin polarization. Use 1 for non-spin-polarized calculations.",
-    )
-
-    ntyp = st.number_input(
-        "ntyp",
-        min_value=1,
-        value=3,
-        step=1,
-        help="Number of atomic species.",
     )
 
     nat = st.number_input(
@@ -487,46 +454,176 @@ with col3:
         help="Number of atoms in the unit cell.",
     )
 
-with st.expander("Advanced SYSTEM settings", expanded=False):
-    col1, col2, col3 = st.columns(3)
+with col2:
+    ntyp = st.number_input(
+        "ntyp",
+        min_value=1,
+        value=3,
+        step=1,
+        help="Number of atomic species.",
+    )
 
-    with col1:
-        nbnd = st.number_input(
+    ecutwfc = st.number_input(
+        "ecutwfc",
+        min_value=0.0,
+        value=30.0,
+        step=5.0,
+        help="Plane-wave kinetic energy cutoff.",
+    )
+
+with col3:
+    ecutrho = st.number_input(
+        "ecutrho",
+        min_value=0.0,
+        value=240.0,
+        step=10.0,
+        help="Charge density cutoff.",
+    )
+
+
+system_params = {
+    "ibrav": ibrav,
+    "nat": nat,
+    "ntyp": ntyp,
+    "ecutwfc": ecutwfc,
+    "ecutrho": ecutrho,
+}
+
+
+with st.expander("Optional SYSTEM: lattice parameters", expanded=False):
+    use_abc = st.checkbox("Add a, b, c")
+    if use_abc:
+        system_params["A"] = st.number_input("A", value=0.0, step=0.1)
+        system_params["B"] = st.number_input("B", value=0.0, step=0.1)
+        system_params["C"] = st.number_input("C", value=0.0, step=0.1)
+
+    use_celldm = st.checkbox("Add celldm(1) to celldm(6)")
+    if use_celldm:
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            system_params["celldm(1)"] = st.number_input("celldm(1)", value=0.0)
+            system_params["celldm(2)"] = st.number_input("celldm(2)", value=0.0)
+
+        with col2:
+            system_params["celldm(3)"] = st.number_input("celldm(3)", value=0.0)
+            system_params["celldm(4)"] = st.number_input("celldm(4)", value=0.0)
+
+        with col3:
+            system_params["celldm(5)"] = st.number_input("celldm(5)", value=0.0)
+            system_params["celldm(6)"] = st.number_input("celldm(6)", value=0.0)
+
+
+with st.expander("Optional SYSTEM: charge settings", expanded=False):
+    use_tot_charge = st.checkbox("Add tot_charge")
+    if use_tot_charge:
+        system_params["tot_charge"] = st.number_input(
+            "tot_charge",
+            value=0.0,
+            step=0.1,
+            help="Total charge of the system.",
+        )
+
+    use_starting_charge = st.checkbox("Add starting_charge")
+    if use_starting_charge:
+        st.info(
+            "For now this adds starting_charge(1). Later we can make this dynamic for all atomic species."
+        )
+        system_params["starting_charge(1)"] = st.number_input(
+            "starting_charge(1)",
+            value=0.0,
+            step=0.1,
+        )
+
+
+with st.expander("Optional SYSTEM: symmetry settings", expanded=False):
+    use_nosym = st.checkbox("Add nosym")
+    if use_nosym:
+        system_params["nosym"] = st.checkbox("nosym value", value=True)
+
+    use_noinv = st.checkbox("Add noinv")
+    if use_noinv:
+        system_params["noinv"] = st.checkbox("noinv value", value=True)
+
+
+with st.expander("Optional SYSTEM: bands and DFT settings", expanded=False):
+    use_nbnd = st.checkbox("Add nbnd")
+    if use_nbnd:
+        system_params["nbnd"] = st.number_input(
             "nbnd",
-            min_value=0,
-            value=0,
+            min_value=1,
+            value=20,
             step=1,
-            help="Number of electronic bands. Use 0 to omit/auto-handle later.",
+            help="Number of electronic bands.",
         )
 
-    with col2:
-        input_dft = st.text_input(
+    use_input_dft = st.checkbox("Add input_dft")
+    if use_input_dft:
+        system_params["input_dft"] = st.text_input(
             "input_dft",
-            value="",
-            help="Exchange-correlation functional. Leave empty if not needed.",
+            value="PBE",
+            help="Exchange-correlation functional, e.g. PBE.",
         )
 
-    with col3:
-        nosym = st.checkbox(
-            "nosym",
-            value=False,
-            help="Disable symmetry if checked.",
+
+with st.expander("Optional SYSTEM: spin settings", expanded=False):
+    use_nspin = st.checkbox("Add nspin")
+    if use_nspin:
+        system_params["nspin"] = st.selectbox(
+            "nspin",
+            [1, 2, 4],
+            index=0,
+            help="1 = non-spin-polarized, 2 = spin-polarized, 4 = noncollinear.",
         )
+
+
+with st.expander("Optional SYSTEM: occupations and smearing", expanded=False):
+    use_occupations = st.checkbox("Add occupations")
+    if use_occupations:
+        occupations = st.selectbox(
+            "occupations",
+            ["fixed", "smearing", "tetrahedra", "tetrahedra_opt"],
+            index=0,
+        )
+        system_params["occupations"] = occupations
+
+        if occupations == "smearing":
+            system_params["smearing"] = st.selectbox(
+                "smearing",
+                [
+                    "gaussian",
+                    "methfessel-paxton",
+                    "marzari-vanderbilt",
+                    "fermi-dirac",
+                ],
+                index=0,
+            )
+
+            system_params["degauss"] = st.number_input(
+                "degauss",
+                min_value=0.0,
+                value=0.01,
+                step=0.001,
+                format="%.6f",
+            )
+
 st.divider()
+
 # -----------------------------
 # ELECTRONS SECTION
 # -----------------------------
 
 st.header("3. ELECTRONS section")
 
-col1, col2, col3 = st.columns(3)
+col1, col2 = st.columns(2)
 
 with col1:
-    mixing_mode = st.selectbox(
-        "mixing_mode",
-        ["plain", "TF", "local-TF"],
-        index=0,
-        help="Charge mixing mode.",
+    conv_thr = st.number_input(
+        "conv_thr",
+        min_value=0.0,
+        value=1.0e-6,
+        format="%.1e",
+        help="Self-consistency convergence threshold.",
     )
 
 with col2:
@@ -539,27 +636,17 @@ with col2:
         help="Mixing factor for self-consistency.",
     )
 
-with col3:
-    diagonalization = st.selectbox(
-        "diagonalization",
-        ["david", "cg", "paro"],
-        index=0,
-        help="Diagonalization method.",
-    )
 
-with st.expander("Advanced ELECTRONS settings", expanded=False):
-    col1, col2 = st.columns(2)
+electrons_params = {
+    "conv_thr": conv_thr,
+    "mixing_beta": mixing_beta,
+}
 
-    with col1:
-        conv_thr = st.number_input(
-            "conv_thr",
-            min_value=0.0,
-            value=1.0e-6,
-            format="%.1e",
-            help="Self-consistency convergence threshold.",
-        )
 
-        electron_maxstep = st.number_input(
+with st.expander("Optional ELECTRONS parameters", expanded=False):
+    use_electron_maxstep = st.checkbox("Add electron_maxstep")
+    if use_electron_maxstep:
+        electrons_params["electron_maxstep"] = st.number_input(
             "electron_maxstep",
             min_value=1,
             value=100,
@@ -567,19 +654,43 @@ with st.expander("Advanced ELECTRONS settings", expanded=False):
             help="Maximum number of electronic SCF steps.",
         )
 
-    with col2:
-        startingwfc = st.selectbox(
-            "startingwfc",
-            ["atomic", "random", "file"],
+    use_mixing_mode = st.checkbox("Add mixing_mode")
+    if use_mixing_mode:
+        electrons_params["mixing_mode"] = st.selectbox(
+            "mixing_mode",
+            ["plain", "TF", "local-TF"],
             index=0,
-            help="Initial wavefunction guess.",
         )
 
-        startingpot = st.selectbox(
+    use_startingpot = st.checkbox("Add startingpot")
+    if use_startingpot:
+        electrons_params["startingpot"] = st.selectbox(
             "startingpot",
             ["atomic", "file"],
             index=0,
-            help="Initial potential guess.",
+        )
+
+    use_startingwfc = st.checkbox("Add startingwfc")
+    if use_startingwfc:
+        electrons_params["startingwfc"] = st.selectbox(
+            "startingwfc",
+            ["atomic", "random", "file"],
+            index=0,
+        )
+
+    use_scf_must_converge = st.checkbox("Add scf_must_converge")
+    if use_scf_must_converge:
+        electrons_params["scf_must_converge"] = st.checkbox(
+            "scf_must_converge value",
+            value=True,
+        )
+
+    use_diagonalization = st.checkbox("Add diagonalization")
+    if use_diagonalization:
+        electrons_params["diagonalization"] = st.selectbox(
+            "diagonalization",
+            ["david", "cg", "paro"],
+            index=0,
         )
 
 st.divider()
@@ -590,58 +701,94 @@ st.divider()
 
 st.header("4. IONS and CELL section")
 
-include_ions = calculation in ["relax", "vc-relax"]
-include_cell = calculation == "vc-relax"
+ions_params = {}
+cell_params = {}
 
-if include_ions:
-    st.info("The &IONS section is enabled because calculation is set to relax or vc-relax.")
+recommended_ions = calculation in ["relax", "vc-relax"]
+recommended_cell = calculation == "vc-relax"
 
-    ion_dynamics = st.selectbox(
-        "ion_dynamics",
-        ["bfgs", "damp", "verlet"],
-        index=0,
-        help="Ion dynamics method used during structural relaxation.",
-    )
-else:
-    st.caption("The &IONS section is not needed for the selected calculation type.")
-    ion_dynamics = "bfgs"
+use_ions = st.checkbox(
+    "Add &IONS section",
+    value=recommended_ions,
+    help="Recommended for relax and vc-relax calculations.",
+)
 
-if include_cell:
-    st.info("The &CELL section is enabled because calculation is set to vc-relax.")
+if use_ions:
+    with st.expander("&IONS parameters", expanded=True):
+        use_ion_dynamics = st.checkbox("Add ion_dynamics", value=True)
+        if use_ion_dynamics:
+            ions_params["ion_dynamics"] = st.selectbox(
+                "ion_dynamics",
+                ["bfgs", "damp", "verlet"],
+                index=0,
+            )
 
-    col1, col2, col3 = st.columns(3)
+        use_ion_positions = st.checkbox("Add ion_positions")
+        if use_ion_positions:
+            ions_params["ion_positions"] = st.selectbox(
+                "ion_positions",
+                ["default", "from_input"],
+                index=0,
+            )
 
-    with col1:
-        cell_dynamics = st.selectbox(
-            "cell_dynamics",
-            ["bfgs", "damp-pr", "damp-w"],
-            index=0,
-            help="Cell dynamics method used during variable-cell relaxation.",
-        )
+        use_ion_velocities = st.checkbox("Add ion_velocities")
+        if use_ion_velocities:
+            ions_params["ion_velocities"] = st.selectbox(
+                "ion_velocities",
+                ["default", "from_input"],
+                index=0,
+            )
 
-    with col2:
-        press = st.number_input(
-            "press",
-            value=0.0,
-            step=0.5,
-            help="Target pressure in kbar.",
-        )
+        use_pot_extrapolation = st.checkbox("Add pot_extrapolation")
+        if use_pot_extrapolation:
+            ions_params["pot_extrapolation"] = st.selectbox(
+                "pot_extrapolation",
+                ["atomic", "first_order", "second_order"],
+                index=0,
+            )
 
-    with col3:
-        cell_dofree = st.selectbox(
-            "cell_dofree",
-            ["all", "x", "y", "z", "xy", "xz", "yz", "xyz", "shape", "volume", "2Dxy"],
-            index=0,
-            help="Cell degrees of freedom to relax.",
-        )
-else:
-    st.caption("The &CELL section is not needed for the selected calculation type.")
-    cell_dynamics = "bfgs"
-    press = 0.0
-    cell_dofree = "all"
+        use_wfc_extrapolation = st.checkbox("Add wfc_extrapolation")
+        if use_wfc_extrapolation:
+            ions_params["wfc_extrapolation"] = st.selectbox(
+                "wfc_extrapolation",
+                ["none", "first_order", "second_order"],
+                index=0,
+            )
+
+use_cell = st.checkbox(
+    "Add &CELL section",
+    value=recommended_cell,
+    help="Recommended for vc-relax calculations.",
+)
+
+if use_cell:
+    with st.expander("&CELL parameters", expanded=True):
+        use_cell_dynamics = st.checkbox("Add cell_dynamics", value=True)
+        if use_cell_dynamics:
+            cell_params["cell_dynamics"] = st.selectbox(
+                "cell_dynamics",
+                ["bfgs", "damp-pr", "damp-w"],
+                index=0,
+            )
+
+        use_cell_dofree = st.checkbox("Add cell_dofree")
+        if use_cell_dofree:
+            cell_params["cell_dofree"] = st.selectbox(
+                "cell_dofree",
+                ["all", "x", "y", "z", "xy", "xz", "yz", "xyz", "shape", "volume", "2Dxy"],
+                index=0,
+            )
+
+        use_press_conv_thr = st.checkbox("Add press_conv_thr")
+        if use_press_conv_thr:
+            cell_params["press_conv_thr"] = st.number_input(
+                "press_conv_thr",
+                value=0.5,
+                step=0.1,
+                help="Pressure convergence threshold.",
+            )
 
 st.divider()
-
 
 # -----------------------------
 # ATOMIC SPECIES
@@ -669,6 +816,14 @@ st.divider()
 
 st.header("5. CELL_PARAMETERS section")
 
+cell_parameters_type = st.selectbox(
+    "CELL_PARAMETERS type",
+    ["angstrom", "bohr", "alat"],
+    index=0,
+    help="Units/type for CELL_PARAMETERS.",
+)
+
+
 cell_parameters = st.text_area(
     "Enter cell parameters in angstrom",
     value="""4.00768164000000 0.00000000000000 0.00000000000000
@@ -688,6 +843,13 @@ st.divider()
 # -----------------------------
 
 st.header("6. ATOMIC_POSITIONS section")
+
+atomic_positions_type = st.selectbox(
+    "ATOMIC_POSITIONS type",
+    ["angstrom", "crystal", "bohr", "alat", "crystal_sg"],
+    index=0,
+    help="Coordinate type for ATOMIC_POSITIONS.",
+)
 
 atomic_positions = st.text_area(
     "Enter atomic positions in angstrom",
@@ -717,65 +879,50 @@ st.header("7. K_POINTS section")
 
 k_points_type = st.selectbox(
     "K_POINTS type",
-    ["automatic", "gamma", "crystal", "tpiba"],
+    [
+        "automatic",
+        "gamma",
+        "crystal",
+        "tpiba",
+        "crystal_b",
+        "tpiba_b",
+        "crystal_c",
+        "tpiba_c",
+    ],
     index=0,
     help="Choose the K_POINTS format.",
 )
 
+
 k_points = st.text_area(
     "Enter K_POINTS values",
     value="4 4 4 0 0 0",
-    height=100,
+    height=120,
     help=(
-        "For automatic: kx ky kz sx sy sz\n"
-        "For gamma: leave this box empty\n"
-        "For crystal/tpiba: enter number of points and coordinates."
+        "automatic: kx ky kz sx sy sz\n"
+        "gamma: leave empty\n"
+        "crystal/tpiba/crystal_b/tpiba_b/crystal_c/tpiba_c: first line is number of k-points, followed by k-point rows."
     ),
 )
 
+
 st.divider()
+
 # -----------------------------
 # GENERATE INPUT FILE
 # -----------------------------
 
 qe_input = generate_qe_input(
-    calculation=calculation,
-    verbosity=verbosity,
-    restart_mode=restart_mode,
-    pseudo_dir=pseudo_dir,
-    prefix=prefix,
-    outdir=outdir,
-    disk_io=disk_io,
-    tstress=tstress,
-    tprnfor=tprnfor,
-    ecutwfc=ecutwfc,
-    ecutrho=ecutrho,
-    occupations=occupations,
-    degauss=degauss,
-    smearing=smearing,
-    nspin=nspin,
-    ntyp=ntyp,
-    nat=nat,
-    ibrav=ibrav,
-    nbnd=nbnd,
-    input_dft=input_dft,
-    nosym=nosym,
-    mixing_mode=mixing_mode,
-    mixing_beta=mixing_beta,
-    diagonalization=diagonalization,
-    conv_thr=conv_thr,
-    electron_maxstep=electron_maxstep,
-    startingwfc=startingwfc,
-    startingpot=startingpot,
-    include_ions=include_ions,
-    ion_dynamics=ion_dynamics,
-    include_cell=include_cell,
-    cell_dynamics=cell_dynamics,
-    press=press,
-    cell_dofree=cell_dofree,
+    control_params=control_params,
+    system_params=system_params,
+    electrons_params=electrons_params,
+    ions_params=ions_params,
+    cell_params=cell_params,
     atomic_species=atomic_species,
     cell_parameters=cell_parameters,
     atomic_positions=atomic_positions,
+    atomic_positions_type=atomic_positions_type,
+    cell_parameters_type=cell_parameters_type,
     k_points_type=k_points_type,
     k_points=k_points,
 )
@@ -807,6 +954,7 @@ kpoint_errors, kpoint_warnings = validate_k_points(
     k_points_type=k_points_type,
     k_points_text=k_points,
 )
+
 system_errors, system_warnings = validate_system_settings(
     ibrav=ibrav,
     cell_parameters_text=cell_parameters,
@@ -863,6 +1011,7 @@ st.caption("Preview of the Quantum ESPRESSO input file that will be downloaded."
 st.code(qe_input, language="text")
 
 st.divider()
+
 # -----------------------------
 # DOWNLOAD FILE
 # -----------------------------

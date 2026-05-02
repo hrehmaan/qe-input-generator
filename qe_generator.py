@@ -1,129 +1,98 @@
 """
-Quantum ESPRESSO input generator.
+Quantum ESPRESSO pw.x input generator.
 
-This module contains helper functions for generating pw.x input files.
-The values are expected to come from the GUI in app.py.
+This module builds input files from selected parameters.
+Only parameters provided by the GUI are printed.
 """
 
 
 def bool_to_qe(value):
-    """
-    Convert Python True/False values to Quantum ESPRESSO .true. / .false.
-    """
+    """Convert Python True/False to Quantum ESPRESSO .true. / .false."""
     return ".true." if value else ".false."
 
 
+def format_qe_value(value):
+    """Format Python values for Quantum ESPRESSO input syntax."""
+    if isinstance(value, bool):
+        return bool_to_qe(value)
+
+    if isinstance(value, str):
+        return f"'{value}'"
+
+    return value
+
+
+def build_namelist(name, parameters):
+    """
+    Build a Quantum ESPRESSO namelist.
+
+    Empty strings and None values are skipped.
+    """
+    lines = [f"&{name}"]
+
+    for key, value in parameters.items():
+        if value is None:
+            continue
+
+        if isinstance(value, str) and value.strip() == "":
+            continue
+
+        lines.append(f"    {key} = {format_qe_value(value)}")
+
+    lines.append("/")
+    return "\n".join(lines)
+
+
 def generate_qe_input(
-    calculation,
-    verbosity,
-    restart_mode,
-    pseudo_dir,
-    prefix,
-    outdir,
-    disk_io,
-    tstress,
-    tprnfor,
-    ecutwfc,
-    ecutrho,
-    occupations,
-    degauss,
-    smearing,
-    nspin,
-    ntyp,
-    nat,
-    ibrav,
-    nbnd,
-    input_dft,
-    nosym,
-    mixing_mode,
-    mixing_beta,
-    diagonalization,
-    conv_thr,
-    electron_maxstep,
-    startingwfc,
-    startingpot,
-    include_ions,
-    ion_dynamics,
-    include_cell,
-    cell_dynamics,
-    press,
-    cell_dofree,
+    control_params,
+    system_params,
+    electrons_params,
     atomic_species,
-    cell_parameters,
     atomic_positions,
     k_points_type,
     k_points,
+    ions_params=None,
+    cell_params=None,
+    cell_parameters=None,
+    atomic_positions_type="angstrom",
+    cell_parameters_type="angstrom",
 ):
     """
     Generate a Quantum ESPRESSO pw.x input file as text.
+
+    Namelist order follows the official pw.x input structure:
+    CONTROL, SYSTEM, ELECTRONS, optional IONS, optional CELL, then cards.
     """
 
-    tstress_value = bool_to_qe(tstress)
-    tprnfor_value = bool_to_qe(tprnfor)
-    nosym_value = bool_to_qe(nosym)
+    ions_params = ions_params or {}
+    cell_params = cell_params or {}
 
-    nbnd_line = f"    nbnd = {nbnd}\n" if nbnd > 0 else ""
-    input_dft_line = f"    input_dft = '{input_dft}'\n" if input_dft.strip() else ""
+    sections = []
 
-    ions_section = ""
-    if include_ions:
-        ions_section = f"""&IONS
-    ion_dynamics = '{ion_dynamics}'
-/
-"""
+    sections.append(build_namelist("CONTROL", control_params))
+    sections.append(build_namelist("SYSTEM", system_params))
+    sections.append(build_namelist("ELECTRONS", electrons_params))
 
-    cell_section = ""
-    if include_cell:
-        cell_section = f"""&CELL
-    cell_dynamics = '{cell_dynamics}'
-    press = {press}
-    cell_dofree = '{cell_dofree}'
-/
-"""
+    if ions_params:
+        sections.append(build_namelist("IONS", ions_params))
 
-    qe_input = f"""&CONTROL
-    calculation = '{calculation}'
-    verbosity = '{verbosity}'
-    restart_mode = '{restart_mode}'
-    prefix = '{prefix}'
-    outdir = '{outdir}'
-    pseudo_dir = '{pseudo_dir}'
-    disk_io = '{disk_io}'
-    tstress = {tstress_value}
-    tprnfor = {tprnfor_value}
-/
-&SYSTEM
-    ecutwfc = {ecutwfc}
-    ecutrho = {ecutrho}
-    occupations = '{occupations}'
-    degauss = {degauss}
-    smearing = '{smearing}'
-    nspin = {nspin}
-    ntyp = {ntyp}
-    nat = {nat}
-    ibrav = {ibrav}
-{nbnd_line}{input_dft_line}    nosym = {nosym_value}
-/
-&ELECTRONS
-    mixing_mode = '{mixing_mode}'
-    mixing_beta = {mixing_beta}
-    diagonalization = '{diagonalization}'
-    conv_thr = {conv_thr}
-    electron_maxstep = {electron_maxstep}
-    startingwfc = '{startingwfc}'
-    startingpot = '{startingpot}'
-/
-{ions_section}{cell_section}ATOMIC_SPECIES
-{atomic_species}
+    if cell_params:
+        sections.append(build_namelist("CELL", cell_params))
 
-CELL_PARAMETERS angstrom
-{cell_parameters}
+    sections.append(f"ATOMIC_SPECIES\n{atomic_species.strip()}")
 
-ATOMIC_POSITIONS angstrom
-{atomic_positions}
+    if cell_parameters and cell_parameters.strip():
+        sections.append(
+            f"CELL_PARAMETERS {cell_parameters_type}\n{cell_parameters.strip()}"
+        )
 
-K_POINTS {k_points_type}
-{k_points}
-"""
+    sections.append(
+        f"ATOMIC_POSITIONS {atomic_positions_type}\n{atomic_positions.strip()}"
+    )
 
-    return qe_input
+    if k_points_type == "gamma":
+        sections.append("K_POINTS gamma")
+    else:
+        sections.append(f"K_POINTS {k_points_type}\n{k_points.strip()}")
+
+    return "\n\n".join(sections) + "\n"
