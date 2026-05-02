@@ -27,4 +27,4 @@ espresso.pwi
 BaTiO3_scf.pwi
 input.in
 ```
-Source repository: https://gitlab.com/QEF/q-e
+Quantum ESPRESSO Source repository: https://gitlab.com/QEF/q-e
