@@ -1,0 +1,43 @@
+&CONTROL
+   calculation      = 'scf'
+   verbosity        = 'high'
+   restart_mode     = 'from_scratch'
+   tstress          = .true.
+   pseudo_dir       = './'
+/
+&SYSTEM
+   ecutwfc          = 30
+   ecutrho          = 240
+   occupations      = 'smearing'
+   degauss          = 0.001
+   smearing         = 'mp'
+   nspin            = 1
+   ntyp             = 3
+   nat              = 5
+   ibrav            = 0
+/
+&ELECTRONS
+   mixing_mode      = 'plain'
+   mixing_beta      = 0.7
+   diagonalization  = 'david'
+/
+ATOMIC_SPECIES
+Ba 137.327 Ba.upf
+Ti 47.867 Ti.upf
+O 15.999 O.upf
+
+CELL_PARAMETERS angstrom
+4.00768164000000 0.00000000000000 0.00000000000000
+0.00000000000000 4.00768164000000 0.00000000000000
+0.00000000000000 0.00000000000000 4.00768164000000
+
+ATOMIC_POSITIONS angstrom
+Ba 2.0038408200 2.0038408200 2.0038408200 
+Ti 0.0000000000 0.0000000000 0.0000000000 
+O 2.0038408200 0.0000000000 0.0000000000 
+O 0.0000000000 2.0038408200 0.0000000000 
+O 0.0000000000 0.0000000000 2.0038408200 
+
+
+K_POINTS automatic
+4 4 4 0 0 0 
