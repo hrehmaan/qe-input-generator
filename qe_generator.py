@@ -1,5 +1,4 @@
-def generate_qe_input():
-    return "Quantum ESPRESSO input file will be generated here."
+
 """
 Quantum ESPRESSO input generator.
 
@@ -83,8 +82,7 @@ def generate_qe_input(
     cell_dofree = '{cell_dofree}'
 /
 """
-    nbnd_line = f"    nbnd = {nbnd}\n" if nbnd > 0 else ""
-    input_dft_line = f"    input_dft = '{input_dft}'\n" if input_dft.strip() else ""
+    
     qe_input = f"""&CONTROL
     calculation = '{calculation}'
     verbosity = '{verbosity}'
