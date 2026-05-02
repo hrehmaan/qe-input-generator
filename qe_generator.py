@@ -1,4 +1,3 @@
-
 """
 Quantum ESPRESSO input generator.
 
@@ -53,12 +52,10 @@ def generate_qe_input(
     cell_parameters,
     atomic_positions,
     k_points_type,
-    k_points,   
+    k_points,
 ):
     """
     Generate a Quantum ESPRESSO pw.x input file as text.
-
-    All values should be provided by the GUI.
     """
 
     tstress_value = bool_to_qe(tstress)
@@ -74,6 +71,7 @@ def generate_qe_input(
     ion_dynamics = '{ion_dynamics}'
 /
 """
+
     cell_section = ""
     if include_cell:
         cell_section = f"""&CELL
@@ -82,7 +80,7 @@ def generate_qe_input(
     cell_dofree = '{cell_dofree}'
 /
 """
-    
+
     qe_input = f"""&CONTROL
     calculation = '{calculation}'
     verbosity = '{verbosity}'
