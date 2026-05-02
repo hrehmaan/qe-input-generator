@@ -367,6 +367,31 @@ with col2:
         help="Folder where pseudopotential files are located.",
     )
 
+with st.expander("Advanced CONTROL settings", expanded=False):
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        prefix = st.text_input(
+            "prefix",
+            value="qe",
+            help="Prefix used for output files.",
+        )
+
+    with col2:
+        outdir = st.text_input(
+            "outdir",
+            value="./tmp/",
+            help="Temporary directory for QE output files.",
+        )
+
+    with col3:
+        disk_io = st.selectbox(
+            "disk_io",
+            ["default", "low", "medium", "high", "none"],
+            index=0,
+            help="Controls how much data QE writes to disk.",
+        )
+
 with col3:
     tstress = st.checkbox(
         "tstress",
@@ -462,6 +487,31 @@ with col3:
         help="Number of atoms in the unit cell.",
     )
 
+with st.expander("Advanced SYSTEM settings", expanded=False):
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        nbnd = st.number_input(
+            "nbnd",
+            min_value=0,
+            value=0,
+            step=1,
+            help="Number of electronic bands. Use 0 to omit/auto-handle later.",
+        )
+
+    with col2:
+        input_dft = st.text_input(
+            "input_dft",
+            value="",
+            help="Exchange-correlation functional. Leave empty if not needed.",
+        )
+
+    with col3:
+        nosym = st.checkbox(
+            "nosym",
+            value=False,
+            help="Disable symmetry if checked.",
+        )
 st.divider()
 # -----------------------------
 # ELECTRONS SECTION
@@ -496,6 +546,41 @@ with col3:
         index=0,
         help="Diagonalization method.",
     )
+
+with st.expander("Advanced ELECTRONS settings", expanded=False):
+    col1, col2 = st.columns(2)
+
+    with col1:
+        conv_thr = st.number_input(
+            "conv_thr",
+            min_value=0.0,
+            value=1.0e-6,
+            format="%.1e",
+            help="Self-consistency convergence threshold.",
+        )
+
+        electron_maxstep = st.number_input(
+            "electron_maxstep",
+            min_value=1,
+            value=100,
+            step=10,
+            help="Maximum number of electronic SCF steps.",
+        )
+
+    with col2:
+        startingwfc = st.selectbox(
+            "startingwfc",
+            ["atomic", "random", "file"],
+            index=0,
+            help="Initial wavefunction guess.",
+        )
+
+        startingpot = st.selectbox(
+            "startingpot",
+            ["atomic", "file"],
+            index=0,
+            help="Initial potential guess.",
+        )
 
 st.divider()
 
@@ -658,6 +743,9 @@ qe_input = generate_qe_input(
     verbosity=verbosity,
     restart_mode=restart_mode,
     pseudo_dir=pseudo_dir,
+    prefix=prefix,
+    outdir=outdir,
+    disk_io=disk_io,
     tstress=tstress,
     tprnfor=tprnfor,
     ecutwfc=ecutwfc,
@@ -669,9 +757,16 @@ qe_input = generate_qe_input(
     ntyp=ntyp,
     nat=nat,
     ibrav=ibrav,
+    nbnd=nbnd,
+    input_dft=input_dft,
+    nosym=nosym,
     mixing_mode=mixing_mode,
     mixing_beta=mixing_beta,
     diagonalization=diagonalization,
+    conv_thr=conv_thr,
+    electron_maxstep=electron_maxstep,
+    startingwfc=startingwfc,
+    startingpot=startingpot,
     include_ions=include_ions,
     ion_dynamics=ion_dynamics,
     include_cell=include_cell,
