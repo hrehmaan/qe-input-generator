@@ -26,3 +26,5 @@ This app helps users generate a downloadable Quantum ESPRESSO input file, such a
 espresso.pwi
 BaTiO3_scf.pwi
 input.in
+```
+Source repository: https://gitlab.com/QEF/q-e
