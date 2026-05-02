@@ -55,39 +55,57 @@ def validate_atomic_species(atomic_species_text, expected_ntyp):
     return errors, warnings
 
 
-def validate_cell_parameters(cell_parameters_text):
+def validate_cell_parameters(cell_parameters_text, ibrav, use_cell_parameters):
     """
     Validate CELL_PARAMETERS section.
-    It should contain exactly 3 non-empty rows.
-    Each row should contain 3 numbers.
+
+    Official QE rule:
+    - Required if ibrav == 0
+    - Must be absent if ibrav != 0
     """
     errors = []
+    warnings = []
 
-    lines = [line.strip() for line in cell_parameters_text.splitlines() if line.strip()]
+    text = cell_parameters_text.strip()
 
-    if len(lines) != 3:
-        errors.append(
-            f"CELL_PARAMETERS should contain exactly 3 non-empty rows, but it contains {len(lines)}."
-        )
-
-    for i, line in enumerate(lines, start=1):
-        parts = line.split()
-
-        if len(parts) != 3:
+    if ibrav == 0:
+        if not text:
             errors.append(
-                f"CELL_PARAMETERS line {i} should contain exactly 3 numbers."
+                "CELL_PARAMETERS is required when ibrav = 0."
             )
-            continue
+            return errors, warnings
 
-        for value in parts:
-            try:
-                float(value)
-            except ValueError:
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+
+        if len(lines) != 3:
+            errors.append(
+                f"CELL_PARAMETERS should contain exactly 3 non-empty rows when ibrav = 0, but it contains {len(lines)}."
+            )
+
+        for i, line in enumerate(lines, start=1):
+            parts = line.split()
+
+            if len(parts) != 3:
                 errors.append(
-                    f"CELL_PARAMETERS line {i}: '{value}' is not a valid number."
+                    f"CELL_PARAMETERS line {i} should contain exactly 3 numbers."
                 )
+                continue
 
-    return errors
+            for value in parts:
+                try:
+                    float(value)
+                except ValueError:
+                    errors.append(
+                        f"CELL_PARAMETERS line {i}: '{value}' is not a valid number."
+                    )
+
+    else:
+        if use_cell_parameters and text:
+            errors.append(
+                "CELL_PARAMETERS must be absent when ibrav is not 0. Use A/B/C or celldm values instead."
+            )
+
+    return errors, warnings
 
 def validate_atomic_positions(atomic_positions_text, expected_nat, atomic_species_text):
     """
@@ -491,11 +509,46 @@ system_params = {
 
 
 with st.expander("Optional SYSTEM: lattice parameters", expanded=False):
-    use_abc = st.checkbox("Add a, b, c")
-    if use_abc:
-        system_params["A"] = st.number_input("A", value=0.0, step=0.1)
-        system_params["B"] = st.number_input("B", value=0.0, step=0.1)
-        system_params["C"] = st.number_input("C", value=0.0, step=0.1)
+    
+    with st.expander("Optional SYSTEM: lattice parameters", expanded=False):
+        use_A = st.checkbox("Add A")
+        if use_A:
+            system_params["A"] = st.number_input(
+                "A",
+                value=4.41813,
+                step=0.01,
+                help="Lattice parameter A in Angstrom.",
+            )
+
+        use_B = st.checkbox("Add B")
+        if use_B:
+            system_params["B"] = st.number_input(
+                "B",
+                value=0.0,
+                step=0.01,
+                help="Lattice parameter B in Angstrom. Only needed for some ibrav values.",
+            )
+
+        use_C = st.checkbox("Add C")
+        if use_C:
+            system_params["C"] = st.number_input(
+                "C",
+                value=32.2573,
+                step=0.01,
+                help="Lattice parameter C in Angstrom.",
+            )
+
+        use_cosAB = st.checkbox("Add cosAB")
+        if use_cosAB:
+            system_params["cosAB"] = st.number_input("cosAB", value=0.0, step=0.01)
+
+        use_cosAC = st.checkbox("Add cosAC")
+        if use_cosAC:
+            system_params["cosAC"] = st.number_input("cosAC", value=0.0, step=0.01)
+
+        use_cosBC = st.checkbox("Add cosBC")
+        if use_cosBC:
+            system_params["cosBC"] = st.number_input("cosBC", value=0.0, step=0.01)
 
     use_celldm = st.checkbox("Add celldm(1) to celldm(6)")
     if use_celldm:
@@ -674,8 +727,9 @@ with st.expander("Optional ELECTRONS parameters", expanded=False):
     if use_startingwfc:
         electrons_params["startingwfc"] = st.selectbox(
             "startingwfc",
-            ["atomic", "random", "file"],
-            index=0,
+            ["atomic", "atomic+random", "random", "file"],
+            index=1,
+            help="Initial wavefunction guess.",
         )
 
     use_scf_must_converge = st.checkbox("Add scf_must_converge")
@@ -816,27 +870,37 @@ st.divider()
 
 st.header("5. CELL_PARAMETERS section")
 
-cell_parameters_type = st.selectbox(
-    "CELL_PARAMETERS type",
-    ["angstrom", "bohr", "alat"],
-    index=0,
-    help="Units/type for CELL_PARAMETERS.",
+use_cell_parameters_default = ibrav == 0
+
+use_cell_parameters = st.checkbox(
+    "Add CELL_PARAMETERS card",
+    value=use_cell_parameters_default,
+    help="Required when ibrav = 0. Must be absent when ibrav is not 0.",
 )
 
+cell_parameters_type = "angstrom"
+cell_parameters = ""
 
-cell_parameters = st.text_area(
-    "Enter cell parameters in angstrom",
-    value="""4.00768164000000 0.00000000000000 0.00000000000000
+if use_cell_parameters:
+    cell_parameters_type = st.selectbox(
+        "CELL_PARAMETERS type",
+        ["angstrom", "bohr", "alat"],
+        index=0,
+        help="Units/type for CELL_PARAMETERS.",
+    )
+
+    cell_parameters = st.text_area(
+        "Enter cell parameters",
+        value="""4.00768164000000 0.00000000000000 0.00000000000000
 0.00000000000000 4.00768164000000 0.00000000000000
 0.00000000000000 0.00000000000000 4.00768164000000""",
-    height=130,
-    help="Three lattice vectors. Each row should contain x y z values.",
-)
+        height=130,
+        help="Three lattice vectors. Each row should contain x y z values.",
+    )
+else:
+    st.info("CELL_PARAMETERS will not be printed.")
 
-st.caption(
-    "Use three rows. Each row represents one lattice vector."
-)
-
+    
 st.divider()
 # -----------------------------
 # ATOMIC POSITIONS
@@ -940,8 +1004,10 @@ species_errors, species_warnings = validate_atomic_species(
     expected_ntyp=ntyp,
 )
 
-cell_errors = validate_cell_parameters(
+cell_errors, cell_warnings = validate_cell_parameters(
     cell_parameters_text=cell_parameters,
+    ibrav=ibrav,
+    use_cell_parameters=use_cell_parameters,
 )
 
 position_errors, position_warnings = validate_atomic_positions(
@@ -970,6 +1036,7 @@ validation_errors.extend(kpoint_errors)
 validation_errors.extend(system_errors)
 
 validation_warnings.extend(species_warnings)
+validation_warnings.extend(cell_warnings)
 validation_warnings.extend(position_warnings)
 validation_warnings.extend(kpoint_warnings)
 validation_warnings.extend(system_warnings)
