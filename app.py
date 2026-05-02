@@ -2,6 +2,7 @@
 import streamlit as st
 
 from qe_generator import generate_qe_input
+import streamlit.components.v1 as components
 
 def count_non_empty_lines(text):
     """
@@ -397,25 +398,195 @@ st.sidebar.info(
     "This tool checks common formatting mistakes, but it does not guarantee physical correctness."
 )
 
-st.title("⚛️ Quantum ESPRESSO pw.x Input Generator")
+# st.title("⚛️ Quantum ESPRESSO pw.x Input Generator")
 
-st.markdown(
+# st.markdown(
+#     """
+#     <div style="
+#         padding: 18px;
+#         border-radius: 12px;
+#         background-color: #f5f7fa;
+#         border: 1px solid #e1e4e8;
+#         margin-bottom: 25px;
+#     ">
+#         <h4 style="margin-top: 0;">Generate Quantum ESPRESSO input files without writing them manually</h4>
+#         <p style="margin-bottom: 0;">
+#             Fill in the GUI fields below, validate the input structure, preview the generated 
+#             <code>.pwi</code> file, and download it for use with <code>pw.x</code>.
+#         </p>
+#     </div>
+#     """,
+#     unsafe_allow_html=True,
+# )
+
+components.html(
     """
     <div style="
-        padding: 18px;
-        border-radius: 12px;
-        background-color: #f5f7fa;
-        border: 1px solid #e1e4e8;
-        margin-bottom: 25px;
+        width: 100%;
+        min-height: 270px;
+        border-radius: 24px;
+        overflow: hidden;
+        position: relative;
+        background:
+            radial-gradient(circle at 20% 20%, rgba(56,189,248,0.35), transparent 28%),
+            radial-gradient(circle at 80% 30%, rgba(168,85,247,0.28), transparent 30%),
+            linear-gradient(135deg, #020617 0%, #0f172a 50%, #111827 100%);
+        border: 1px solid rgba(148,163,184,0.35);
+        box-shadow: 0 24px 60px rgba(15,23,42,0.35);
+        margin-bottom: 28px;
     ">
-        <h4 style="margin-top: 0;">Generate Quantum ESPRESSO input files without writing them manually</h4>
-        <p style="margin-bottom: 0;">
-            Fill in the GUI fields below, validate the input structure, preview the generated 
-            <code>.pwi</code> file, and download it for use with <code>pw.x</code>.
-        </p>
+        <canvas id="hero-canvas" style="
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+        "></canvas>
+
+        <div style="
+            position: relative;
+            z-index: 2;
+            padding: 24px 38px 28px 38px;
+            max-width: 760px;
+            color: white;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        ">
+            
+            <h1 style="
+                font-size: 38px;
+                line-height: 1.12;
+                margin: 0 0 14px 0;
+                letter-spacing: -0.03em;
+                color: #f8fafc;
+            ">
+                Quantum ESPRESSO<br>
+                <span style="color:#7dd3fc;">
+                    pw.x <span style="font-size: 26px;">script generator</span> </span>
+            </h1>
+
+            <h2 style="
+                font-size: 19px;
+                font-weight: 500;
+                color: #cbd5e1;
+                margin: 0 0 14px 0;
+            ">
+                Generate Quantum ESPRESSO input files without writing them manually
+            </h2>
+
+            <ul style="
+                font-size: 16px;
+                line-height: 1.55;
+                color: #dbeafe;
+                margin: 0;
+                padding-left: 22px;
+                max-width: 700px;
+            ">
+                <li>Fill the GUI options below.</li>
+                <li>Validate the Quantum ESPRESSO input structure.</li>
+                <li>Preview and edit the generated input file before downloading.</li>
+                <li>Download the final file with any extension, such as <code style="color:#bae6fd;">.pwi</code>, <code style="color:#bae6fd;">.in</code>, or <code style="color:#bae6fd;">.txt</code>, for use with <code style="color:#bae6fd;">pw.x</code>.</li>
+            </ul>
+        </div>
     </div>
+
+    <script>
+    const canvas = document.getElementById("hero-canvas");
+    const ctx = canvas.getContext("2d");
+    const wrapper = canvas.parentElement;
+
+    function resize() {
+        canvas.width = wrapper.offsetWidth;
+        canvas.height = wrapper.offsetHeight;
+    }
+
+    resize();
+
+    let mouse = { x: canvas.width * 0.75, y: canvas.height * 0.5 };
+    let hasMouse = false;
+
+    wrapper.addEventListener("mousemove", function(e) {
+        const rect = canvas.getBoundingClientRect();
+        mouse.x = e.clientX - rect.left;
+        mouse.y = e.clientY - rect.top;
+        hasMouse = true;
+    });
+
+    wrapper.addEventListener("mouseleave", function() {
+        hasMouse = false;
+    });
+
+    const atoms = [];
+    const atomCount = 70;
+
+    for (let i = 0; i < atomCount; i++) {
+        atoms.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            vx: (Math.random() - 0.5) * 0.55,
+            vy: (Math.random() - 0.5) * 0.55,
+            r: Math.random() * 2.2 + 1.4
+        });
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        for (let i = 0; i < atoms.length; i++) {
+            const p = atoms[i];
+
+            p.x += p.vx;
+            p.y += p.vy;
+
+            if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
+            if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
+
+            if (hasMouse) {
+                const dx = mouse.x - p.x;
+                const dy = mouse.y - p.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist < 150) {
+                    p.x -= dx * 0.006;
+                    p.y -= dy * 0.006;
+                }
+            }
+
+            for (let j = i + 1; j < atoms.length; j++) {
+                const q = atoms[j];
+                const dx = p.x - q.x;
+                const dy = p.y - q.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist < 115) {
+                    const opacity = 1 - dist / 115;
+                    ctx.beginPath();
+                    ctx.moveTo(p.x, p.y);
+                    ctx.lineTo(q.x, q.y);
+                    ctx.strokeStyle = `rgba(125, 211, 252, ${opacity * 0.32})`;
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                }
+            }
+
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(186, 230, 253, 0.92)";
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r * 3.2, 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(56, 189, 248, 0.045)";
+            ctx.fill();
+        }
+
+        requestAnimationFrame(draw);
+    }
+
+    draw();
+
+    window.addEventListener("resize", resize);
+    </script>
     """,
-    unsafe_allow_html=True,
+    height=285,
 )
 
 # -----------------------------
