@@ -423,7 +423,7 @@ components.html(
     """
     <div style="
         width: 100%;
-        min-height: 270px;
+        min-height: clamp(300px, 42vw, 430px);
         border-radius: 24px;
         overflow: hidden;
         position: relative;
@@ -432,7 +432,7 @@ components.html(
             radial-gradient(circle at 80% 30%, rgba(168,85,247,0.28), transparent 30%),
             linear-gradient(135deg, #020617 0%, #0f172a 50%, #111827 100%);
         border: 1px solid rgba(148,163,184,0.35);
-        box-shadow: 0 24px 60px rgba(15,23,42,0.35);
+        box-shadow: none;
         margin-bottom: 28px;
     ">
         <canvas id="hero-canvas" style="
@@ -445,14 +445,14 @@ components.html(
         <div style="
             position: relative;
             z-index: 2;
-            padding: 24px 38px 28px 38px;
+            padding: clamp(18px, 4vw, 36px);
             max-width: 760px;
             color: white;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         ">
             
             <h1 style="
-                font-size: 38px;
+                font-size: clamp(28px, 5vw, 38px);
                 line-height: 1.12;
                 margin: 0 0 14px 0;
                 letter-spacing: -0.03em;
@@ -460,11 +460,11 @@ components.html(
             ">
                 Quantum ESPRESSO<br>
                 <span style="color:#7dd3fc;">
-                    pw.x <span style="font-size: 26px;">script generator</span> </span>
+                    pw.x <span style="font-size: clamp(19px, 3.4vw, 26px);">script generator</span> </span>
             </h1>
 
             <h2 style="
-                font-size: 19px;
+                font-size: clamp(15px, 2.6vw, 19px);
                 font-weight: 500;
                 color: #cbd5e1;
                 margin: 0 0 14px 0;
@@ -473,7 +473,7 @@ components.html(
             </h2>
 
             <ul style="
-                font-size: 16px;
+                font-size: clamp(13px, 2.4vw, 16px);
                 line-height: 1.55;
                 color: #dbeafe;
                 margin: 0;
@@ -586,7 +586,7 @@ components.html(
     window.addEventListener("resize", resize);
     </script>
     """,
-    height=285,
+    height=430,
 )
 
 # -----------------------------
