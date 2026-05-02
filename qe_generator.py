@@ -37,6 +37,7 @@ def generate_qe_input(
     atomic_species,
     cell_parameters,
     atomic_positions,
+    k_points_type,
     k_points,
 ):
     """
@@ -81,7 +82,7 @@ CELL_PARAMETERS angstrom
 ATOMIC_POSITIONS angstrom
 {atomic_positions}
 
-K_POINTS automatic
+K_POINTS {k_points_type}
 {k_points}
 """
 
