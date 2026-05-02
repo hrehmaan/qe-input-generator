@@ -31,3 +31,13 @@ BaTiO3_scf.pwi
 input.in
 ```
 Quantum ESPRESSO Source repository: https://gitlab.com/QEF/q-e
+
+## Contributing
+
+Contributions are very welcome, but please read the contributing guide first:
+
+[Contributing guidelines](CONTRIBUTING.md)
+
+## License
+
+MIT

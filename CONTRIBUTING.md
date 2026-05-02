@@ -6,7 +6,16 @@ This project provides a browser-based GUI for generating Quantum ESPRESSO `pw.x`
 
 ## Before contributing
 
-Before making a large change, please open a GitHub issue first. This helps discuss the bug, missing feature, or improvement before work begins.
+Before making a large change, please open a GitHub issue first or contact the maintainer by email.
+
+GitHub issues:  
+[https://github.com/hrehmaan/qe-input-generator/issues](https://github.com/hrehmaan/qe-input-generator/issues)
+
+
+Maintainer email:  
+[h.rehmaan96@gmail.com](mailto:h.rehmaan96@gmail.com)
+
+This helps discuss the bug, missing feature, or improvement before work begins.
 
 Good issue topics include:
 
