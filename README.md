@@ -1,6 +1,7 @@
 # Quantum ESPRESSO Input PWI Generator
 
 A beginner-friendly browser-based GUI for generating Quantum ESPRESSO `pw.x` input files.
+To install Quantum ESPRESSO docker image follow this link: https://github.com/hrehmaan/qe-docker
 
 ## Use the app online
 
