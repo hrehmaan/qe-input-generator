@@ -71,7 +71,6 @@ def generate_qe_input(
     ion_dynamics = '{ion_dynamics}'
 /
 """
-
     cell_section = ""
     if include_cell:
         cell_section = f"""&CELL
