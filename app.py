@@ -1360,31 +1360,6 @@ if st.session_state.last_qe_input != qe_input:
     st.session_state.card_order = movable_card_sections
     st.session_state.last_qe_input = qe_input
 
-st.subheader("Move card sections up or down")
-
-for i, section_name in enumerate(st.session_state.card_order):
-    col1, col2, col3 = st.columns([1, 6, 1])
-
-    with col1:
-        if st.button("▲", key=f"move_up_{section_name}", disabled=(i == 0)):
-            st.session_state.card_order = move_item(
-                st.session_state.card_order,
-                i,
-                -1,
-            )
-            st.rerun()
-
-    with col2:
-        st.write(f"**{i + 1}. {section_name}**")
-
-    with col3:
-        if st.button("▼", key=f"move_down_{section_name}", disabled=(i == len(st.session_state.card_order) - 1)):
-            st.session_state.card_order = move_item(
-                st.session_state.card_order,
-                i,
-                1,
-            )
-            st.rerun()
 
 ordered_blocks = []
 
@@ -1404,6 +1379,38 @@ final_qe_input = st.text_area(
     height=500,
     help="This exact text will be downloaded.",
 )
+
+st.markdown(
+    "<p style='font-size: 13px; color: #64748b; margin-top: 8px; margin-bottom: 4px;'>Move card sections up or down</p>",
+    unsafe_allow_html=True,
+)
+
+for i, section_name in enumerate(st.session_state.card_order):
+    col1, col2, col3 = st.columns([0.45, 3.5, 0.45])
+
+    with col1:
+        if st.button("▲", key=f"move_up_{section_name}", disabled=(i == 0)):
+            st.session_state.card_order = move_item(
+                st.session_state.card_order,
+                i,
+                -1,
+            )
+            st.rerun()
+
+    with col2:
+        st.markdown(
+            f"<span style='font-size: 13px; color: #475569;'>{i + 1}. {section_name}</span>",
+            unsafe_allow_html=True,
+        )
+
+    with col3:
+        if st.button("▼", key=f"move_down_{section_name}", disabled=(i == len(st.session_state.card_order) - 1)):
+            st.session_state.card_order = move_item(
+                st.session_state.card_order,
+                i,
+                1,
+            )
+            st.rerun()
 
 st.divider()
 
