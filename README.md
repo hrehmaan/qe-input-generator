@@ -8,6 +8,12 @@ Click here to use the GUI directly in your browser:
 
 👉 [Open QE Input PWI Generator](https://qe-input-pwi-generator.streamlit.app/)
 
+
+Direct link for copy/paste:
+
+```text
+https://qe-input-pwi-generator.streamlit.app/
+```
 No installation is required.  
 No coding is required.  
 No repository download is required.
