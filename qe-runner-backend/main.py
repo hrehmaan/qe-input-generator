@@ -45,6 +45,10 @@ BASE_JOB_DIR.mkdir(parents=True, exist_ok=True)
 
 AUTO_DELETE_SECONDS = 600  # 10 minutes
 
+MAX_ATOMS_FOR_QE_CHECK = 30
+MAX_UPLOADED_PSEUDO_FILES = 10
+MAX_PSEUDO_FILE_SIZE_MB = 20
+MAX_PSEUDO_FILE_SIZE_BYTES = MAX_PSEUDO_FILE_SIZE_MB * 1024 * 1024
 
 def safe_filename(filename: str) -> str:
     """
@@ -106,6 +110,30 @@ def extract_required_pseudos(input_text: str) -> list[str]:
 
     return required_pseudos
 
+
+def extract_nat(input_text: str) -> int | None:
+    """
+    Extract nat from the &SYSTEM namelist.
+
+    Example:
+        nat = 10
+    """
+    for line in input_text.splitlines():
+        stripped = line.strip()
+
+        if stripped.lower().startswith("nat"):
+            if "=" not in stripped:
+                continue
+
+            value = stripped.split("=", 1)[1]
+            value = value.replace(",", "").strip()
+
+            try:
+                return int(float(value))
+            except ValueError:
+                return None
+
+    return None
 
 def run_qe_smoke_check(job_dir: Path, timeout_seconds: int = 20) -> dict:
     """
@@ -222,6 +250,30 @@ async def qe_check(
     Files are saved in a temporary job folder and scheduled
     for automatic deletion after 10 minutes.
     """
+    
+    if len(pseudo_files) > MAX_UPLOADED_PSEUDO_FILES:
+        return {
+            "status": "too_many_files",
+            "message": (
+                f"Too many pseudopotential files uploaded. "
+                f"Maximum allowed is {MAX_UPLOADED_PSEUDO_FILES}."
+            ),
+            "max_uploaded_pseudo_files": MAX_UPLOADED_PSEUDO_FILES,
+        }
+
+    nat = extract_nat(input_text)
+
+    if run_qe and nat is not None and nat > MAX_ATOMS_FOR_QE_CHECK:
+        return {
+            "status": "too_many_atoms_for_qe_check",
+            "message": (
+                f"This input has nat = {nat}. "
+                f"The online QE smoke check is limited to nat <= {MAX_ATOMS_FOR_QE_CHECK}. "
+                "You can still download the input file and run it locally, in Docker, or on an HPC cluster."
+            ),
+            "nat": nat,
+            "max_atoms_for_qe_check": MAX_ATOMS_FOR_QE_CHECK,
+        }
     job_id = uuid.uuid4().hex
     job_dir = BASE_JOB_DIR / job_id
     job_dir.mkdir(parents=True, exist_ok=True)
@@ -243,6 +295,21 @@ async def qe_check(
 
         file_path = job_dir / filename
         content = await uploaded_file.read()
+
+        if len(content) > MAX_PSEUDO_FILE_SIZE_BYTES:
+            remove_job_dir(job_dir)
+
+            return {
+                "status": "file_too_large",
+                "job_id": job_id,
+                "message": (
+                    f"Uploaded file '{filename}' is too large. "
+                    f"Maximum allowed size is {MAX_PSEUDO_FILE_SIZE_MB} MB."
+                ),
+                "file": filename,
+                "max_file_size_mb": MAX_PSEUDO_FILE_SIZE_MB,
+            }
+
         file_path.write_bytes(content)
 
         saved_files.append(filename)

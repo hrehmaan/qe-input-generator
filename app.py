@@ -1056,8 +1056,15 @@ st.set_page_config(
     layout="wide",
 )
 
-BACKEND_URL = st.secrets.get("BACKEND_URL", "http://127.0.0.1:8000")
-
+try:
+    BACKEND_URL = st.secrets["BACKEND_URL"]
+except Exception:
+    BACKEND_URL = "http://127.0.0.1:8000"
+    
+MAX_ATOMS_FOR_QE_CHECK = 30
+MAX_UPLOADED_PSEUDO_FILES = 10
+MAX_PSEUDO_FILE_SIZE_MB = 20
+MAX_PSEUDO_FILE_SIZE_BYTES = MAX_PSEUDO_FILE_SIZE_MB * 1024 * 1024
 
 def upload_to_qe_backend(input_text, uploaded_pseudo_files, run_qe=False):
     """
@@ -1091,6 +1098,33 @@ def upload_to_qe_backend(input_text, uploaded_pseudo_files, run_qe=False):
 
     response.raise_for_status()
     return response.json()
+
+def check_qe_online_limits(nat, uploaded_pseudo_files, run_qe):
+    """
+    Check frontend limits before sending files to the backend.
+    """
+    errors = []
+
+    if len(uploaded_pseudo_files) > MAX_UPLOADED_PSEUDO_FILES:
+        errors.append(
+            f"You uploaded {len(uploaded_pseudo_files)} pseudopotential files. "
+            f"The maximum allowed is {MAX_UPLOADED_PSEUDO_FILES}."
+        )
+
+    for uploaded_file in uploaded_pseudo_files:
+        if uploaded_file.size > MAX_PSEUDO_FILE_SIZE_BYTES:
+            errors.append(
+                f"{uploaded_file.name} is larger than {MAX_PSEUDO_FILE_SIZE_MB} MB."
+            )
+
+    if run_qe and nat > MAX_ATOMS_FOR_QE_CHECK:
+        errors.append(
+            f"This input has nat = {nat}. "
+            f"The online QE smoke check is limited to nat <= {MAX_ATOMS_FOR_QE_CHECK}. "
+            "You can still upload files for checking, download the input, and run it locally or on HPC."
+        )
+
+    return errors
 
 
 def delete_backend_job(job_id):
@@ -2294,6 +2328,12 @@ st.caption(
     "The backend stores them temporarily and deletes them automatically after 10 minutes."
 )
 
+st.info(
+    f"Online QE smoke checks are limited to nat ≤ {MAX_ATOMS_FOR_QE_CHECK}, "
+    f"maximum {MAX_UPLOADED_PSEUDO_FILES} pseudopotential files, "
+    f"and {MAX_PSEUDO_FILE_SIZE_MB} MB per file."
+)
+
 uploaded_pseudo_files = st.file_uploader(
     "Upload required .UPF pseudopotential files",
     type=["UPF", "upf"],
@@ -2332,31 +2372,42 @@ with col1:
         help="Validation errors must be fixed before sending files to the backend.",
     )
 
-
 if run_backend_upload:
     if not uploaded_pseudo_files:
         st.warning("Please upload at least one .UPF pseudopotential file.")
     else:
-        try:
-            backend_response = upload_to_qe_backend(
-                input_text=final_qe_input,
-                uploaded_pseudo_files=uploaded_pseudo_files,
-                run_qe=run_qe_online_check,
-            )
+        limit_errors = check_qe_online_limits(
+            nat=nat,
+            uploaded_pseudo_files=uploaded_pseudo_files,
+            run_qe=run_qe_online_check,
+        )
 
-            st.session_state.qe_backend_response = backend_response
-            st.session_state.qe_backend_job_id = backend_response.get("job_id")
+        if limit_errors:
+            st.error("The online QE check cannot start because of these limit(s):")
 
-            st.success("Files uploaded to backend successfully.")
+            for error in limit_errors:
+                st.write(f"❌ {error}")
 
-        except requests.exceptions.ConnectionError:
-            st.error(
-                "Could not connect to the backend. Make sure it is running at http://127.0.0.1:8000."
-            )
+        else:
+            try:
+                backend_response = upload_to_qe_backend(
+                    input_text=final_qe_input,
+                    uploaded_pseudo_files=uploaded_pseudo_files,
+                    run_qe=run_qe_online_check,
+                )
 
-        except requests.exceptions.RequestException as error:
-            st.error(f"Backend request failed: {error}")
+                st.session_state.qe_backend_response = backend_response
+                st.session_state.qe_backend_job_id = backend_response.get("job_id")
 
+                st.success("Files uploaded to backend successfully.")
+
+            except requests.exceptions.ConnectionError:
+                st.error(
+                    "Could not connect to the backend. Make sure the backend service is running."
+                )
+
+            except requests.exceptions.RequestException as error:
+                st.error(f"Backend request failed: {error}")
 
 if st.session_state.qe_backend_response:
     response = st.session_state.qe_backend_response
@@ -2368,6 +2419,13 @@ if st.session_state.qe_backend_response:
     st.write(f"**Job ID:** `{job_id}`")
     st.write(f"**Auto-delete time:** {response.get('auto_delete_seconds')} seconds")
     st.write(f"**Message:** {response.get('message')}")
+
+    if response.get("status") in [
+        "too_many_files",
+        "too_many_atoms_for_qe_check",
+        "file_too_large",
+    ]:
+        st.error(response.get("message"))
 
     qe_run_status = response.get("qe_run_status")
     qe_run_message = response.get("qe_run_message")
