@@ -188,22 +188,7 @@ def validate_atomic_positions(atomic_positions_text, expected_nat, atomic_specie
 
 def validate_k_points(k_points_type, k_points_text):
     """
-    Validate K_POINTS section based on official Quantum ESPRESSO pw.x syntax.
-
-    Official K_POINTS types:
-    - gamma
-    - automatic
-    - crystal
-    - tpiba
-    - crystal_b
-    - tpiba_b
-    - crystal_c
-    - tpiba_c
-
-    Rules:
-    - gamma: no extra values
-    - automatic: exactly 6 integers -> nk1 nk2 nk3 sk1 sk2 sk3
-    - other types: first line is nks, followed by nks k-point rows
+    Validate K_POINTS section based on official QE pw.x syntax.
     """
     errors = []
     warnings = []
@@ -228,21 +213,14 @@ def validate_k_points(k_points_type, k_points_text):
 
     text = k_points_text.strip()
 
-    # -----------------------------
-    # K_POINTS gamma
-    # -----------------------------
     if k_points_type == "gamma":
         if text:
             warnings.append(
-                "K_POINTS gamma usually does not need extra values. "
+                "K_POINTS gamma does not need extra values. "
                 "The generated file will use only: K_POINTS gamma."
             )
-
         return errors, warnings
 
-    # -----------------------------
-    # K_POINTS automatic
-    # -----------------------------
     if k_points_type == "automatic":
         parts = text.split()
 
@@ -259,9 +237,7 @@ def validate_k_points(k_points_type, k_points_text):
             try:
                 values.append(int(value))
             except ValueError:
-                errors.append(
-                    f"K_POINTS automatic value '{value}' should be an integer."
-                )
+                errors.append(f"K_POINTS automatic value '{value}' must be an integer.")
 
         if errors:
             return errors, warnings
@@ -269,26 +245,14 @@ def validate_k_points(k_points_type, k_points_text):
         nk1, nk2, nk3, sk1, sk2, sk3 = values
 
         if nk1 <= 0 or nk2 <= 0 or nk3 <= 0:
-            errors.append(
-                "K_POINTS automatic grid values nk1, nk2, nk3 must be positive integers."
-            )
+            errors.append("K_POINTS automatic nk1, nk2, nk3 must be positive integers.")
 
-        for shift_name, shift_value in [
-            ("sk1", sk1),
-            ("sk2", sk2),
-            ("sk3", sk3),
-        ]:
-            if shift_value not in [0, 1]:
-                errors.append(
-                    f"K_POINTS automatic shift value {shift_name} must be 0 or 1."
-                )
+        for name, shift in [("sk1", sk1), ("sk2", sk2), ("sk3", sk3)]:
+            if shift not in [0, 1]:
+                errors.append(f"K_POINTS automatic {name} must be 0 or 1.")
 
         return errors, warnings
 
-    # -----------------------------
-    # K_POINTS listed modes
-    # crystal, tpiba, crystal_b, tpiba_b, crystal_c, tpiba_c
-    # -----------------------------
     listed_k_types = [
         "crystal",
         "tpiba",
@@ -311,14 +275,12 @@ def validate_k_points(k_points_type, k_points_text):
             nks = int(lines[0].split()[0])
         except ValueError:
             errors.append(
-                f"K_POINTS {k_points_type}: first line should start with the number of k-points."
+                f"K_POINTS {k_points_type}: first line must start with the number of k-points."
             )
             return errors, warnings
 
         if nks <= 0:
-            errors.append(
-                f"K_POINTS {k_points_type}: number of k-points must be a positive integer."
-            )
+            errors.append(f"K_POINTS {k_points_type}: nks must be positive.")
             return errors, warnings
 
         kpoint_lines = lines[1:]
@@ -329,11 +291,9 @@ def validate_k_points(k_points_type, k_points_text):
                 f"but {len(kpoint_lines)} k-point line(s) were entered."
             )
 
-        # For crystal_c and tpiba_c, QE documentation indicates contour-plot usage.
-        # A practical strict check is that nks should be 3 for these modes.
         if k_points_type in ["crystal_c", "tpiba_c"] and nks != 3:
             errors.append(
-                f"K_POINTS {k_points_type} is used for contour plots and should have exactly 3 k-points."
+                f"K_POINTS {k_points_type} is for contour plots and must have exactly 3 k-points."
             )
 
         for i, line in enumerate(kpoint_lines, start=1):
@@ -341,28 +301,329 @@ def validate_k_points(k_points_type, k_points_text):
 
             if len(parts) < 4:
                 errors.append(
-                    f"K_POINTS {k_points_type} line {i} should contain at least "
+                    f"K_POINTS {k_points_type} line {i} must contain at least "
                     "4 values: kx ky kz weight."
                 )
                 continue
 
-            # Check first four values are numeric
             for value in parts[:4]:
-                try:
-                    float(value)
-                except ValueError:
+                if not is_number(value):
                     errors.append(
-                        f"K_POINTS {k_points_type} line {i}: '{value}' is not a valid number."
+                        f"K_POINTS {k_points_type} line {i}: '{value}' is not numeric."
                     )
 
-        # Helpful warning for band-structure modes
         if k_points_type in ["crystal_b", "tpiba_b"]:
             warnings.append(
-                f"K_POINTS {k_points_type} is commonly used for band-structure paths. "
-                "Make sure the k-point path follows the QE band-path format."
+                f"K_POINTS {k_points_type} is used for band-structure paths. "
+                "Check that the path follows the QE band-path convention."
             )
 
         return errors, warnings
+
+    return errors, warnings
+
+
+def validate_control_parameters(control_params):
+    """
+    Validate CONTROL options currently exposed in the GUI.
+    """
+    errors = []
+    warnings = []
+
+    valid_calculations = ["scf", "nscf", "bands", "relax", "md", "vc-relax", "vc-md"]
+    valid_verbosity = ["high", "low"]
+    valid_restart_mode = ["from_scratch", "restart"]
+
+    if has_param(control_params, "calculation"):
+        if control_params["calculation"] not in valid_calculations:
+            errors.append(
+                f"Invalid calculation '{control_params['calculation']}'. "
+                f"Valid options are: {', '.join(valid_calculations)}."
+            )
+
+    if has_param(control_params, "verbosity"):
+        if control_params["verbosity"] not in valid_verbosity:
+            errors.append("verbosity must be 'low' or 'high'.")
+
+    if has_param(control_params, "restart_mode"):
+        if control_params["restart_mode"] not in valid_restart_mode:
+            errors.append("restart_mode must be 'from_scratch' or 'restart'.")
+
+    if has_param(control_params, "max_seconds"):
+        if float(control_params["max_seconds"]) <= 0:
+            errors.append("max_seconds must be positive.")
+
+    if has_param(control_params, "wf_collect"):
+        warnings.append(
+            "wf_collect is obsolete and no longer implemented in recent QE versions."
+        )
+
+    if has_param(control_params, "etot_conv_thr"):
+        if float(control_params["etot_conv_thr"]) <= 0:
+            errors.append("etot_conv_thr must be positive.")
+
+    if has_param(control_params, "forc_conv_thr"):
+        if float(control_params["forc_conv_thr"]) <= 0:
+            errors.append("forc_conv_thr must be positive.")
+
+    return errors, warnings
+
+
+def validate_system_parameters(system_params, ibrav, use_cell_parameters):
+    """
+    Validate SYSTEM options currently exposed in the GUI.
+    """
+    errors = []
+    warnings = []
+
+    lattice_errors, lattice_warnings = validate_lattice_parameters(
+        system_params=system_params,
+        ibrav=ibrav,
+        use_cell_parameters=use_cell_parameters,
+    )
+
+    errors.extend(lattice_errors)
+    warnings.extend(lattice_warnings)
+
+    required_positive = ["nat", "ntyp", "ecutwfc"]
+
+    for key in required_positive:
+        if not has_param(system_params, key):
+            errors.append(f"{key} is required in &SYSTEM.")
+        elif float(system_params[key]) <= 0:
+            errors.append(f"{key} must be positive.")
+
+    if has_param(system_params, "ecutrho"):
+        if float(system_params["ecutrho"]) <= 0:
+            errors.append("ecutrho must be positive.")
+
+        if has_param(system_params, "ecutwfc"):
+            if float(system_params["ecutrho"]) < 4 * float(system_params["ecutwfc"]):
+                warnings.append(
+                    "ecutrho is less than 4 × ecutwfc. QE default is 4 × ecutwfc, "
+                    "and ultrasoft pseudopotentials often need 8–12 × ecutwfc."
+                )
+
+    if has_param(system_params, "nbnd") and int(system_params["nbnd"]) <= 0:
+        errors.append("nbnd must be a positive integer.")
+
+    if has_param(system_params, "nspin"):
+        nspin = int(system_params["nspin"])
+
+        if nspin not in [1, 2, 4]:
+            errors.append("nspin must be 1, 2, or 4.")
+
+        if nspin == 4:
+            errors.append(
+                "QE documentation says not to specify nspin=4 directly; "
+                "use noncolin=.TRUE. instead. This GUI does not yet support noncolin."
+            )
+
+    if has_param(system_params, "occupations"):
+        valid_occupations = [
+            "fixed",
+            "smearing",
+            "tetrahedra",
+            "tetrahedra_lin",
+            "tetrahedra_opt",
+            "from_input",
+        ]
+
+        occupations = system_params["occupations"]
+
+        if occupations not in valid_occupations:
+            errors.append(
+                f"Invalid occupations value '{occupations}'. "
+                f"Valid options are: {', '.join(valid_occupations)}."
+            )
+
+        if occupations == "smearing":
+            if not has_param(system_params, "smearing"):
+                errors.append("smearing must be specified when occupations = 'smearing'.")
+            if not has_param(system_params, "degauss"):
+                errors.append("degauss must be specified when occupations = 'smearing'.")
+            elif float(system_params["degauss"]) < 0:
+                errors.append("degauss must be non-negative.")
+
+        if occupations == "fixed":
+            if has_param(system_params, "smearing") or has_param(system_params, "degauss"):
+                warnings.append(
+                    "occupations = 'fixed' normally does not need smearing or degauss."
+                )
+
+    if has_param(system_params, "smearing"):
+        valid_smearing = [
+            "gaussian",
+            "gauss",
+            "methfessel-paxton",
+            "m-p",
+            "mp",
+            "marzari-vanderbilt",
+            "cold",
+            "m-v",
+            "mv",
+            "fermi-dirac",
+            "f-d",
+            "fd",
+        ]
+
+        if system_params["smearing"] not in valid_smearing:
+            errors.append(
+                f"Invalid smearing value '{system_params['smearing']}'. "
+                f"Valid options are: {', '.join(valid_smearing)}."
+            )
+
+    return errors, warnings
+
+
+def validate_electrons_parameters(electrons_params):
+    """
+    Validate ELECTRONS options currently exposed in the GUI.
+    """
+    errors = []
+    warnings = []
+
+    if has_param(electrons_params, "conv_thr") and float(electrons_params["conv_thr"]) <= 0:
+        errors.append("conv_thr must be positive.")
+
+    if has_param(electrons_params, "electron_maxstep") and int(electrons_params["electron_maxstep"]) <= 0:
+        errors.append("electron_maxstep must be a positive integer.")
+
+    if has_param(electrons_params, "mixing_beta"):
+        mixing_beta = float(electrons_params["mixing_beta"])
+        if mixing_beta <= 0 or mixing_beta > 1:
+            errors.append("mixing_beta should be greater than 0 and less than or equal to 1.")
+
+    if has_param(electrons_params, "mixing_mode"):
+        valid_mixing_mode = ["plain", "TF", "local-TF"]
+        if electrons_params["mixing_mode"] not in valid_mixing_mode:
+            errors.append("mixing_mode must be one of: plain, TF, local-TF.")
+
+    if has_param(electrons_params, "startingpot"):
+        valid_startingpot = ["atomic", "file"]
+        if electrons_params["startingpot"] not in valid_startingpot:
+            errors.append("startingpot must be 'atomic' or 'file'.")
+
+    if has_param(electrons_params, "startingwfc"):
+        valid_startingwfc = ["atomic", "atomic+random", "random", "file"]
+        if electrons_params["startingwfc"] not in valid_startingwfc:
+            errors.append(
+                "startingwfc must be one of: atomic, atomic+random, random, file."
+            )
+
+    if has_param(electrons_params, "diagonalization"):
+        valid_diagonalization = ["david", "cg", "paro"]
+        if electrons_params["diagonalization"] not in valid_diagonalization:
+            errors.append("diagonalization must be one of: david, cg, paro.")
+
+    return errors, warnings
+
+
+def validate_ions_cell_parameters(calculation, ions_params, cell_params):
+    """
+    Validate IONS and CELL options currently exposed in the GUI.
+    """
+    errors = []
+    warnings = []
+    if calculation == "relax" and not ions_params:
+        warnings.append(
+            "calculation = 'relax' usually requires the &IONS section. Add &IONS unless you intentionally want to rely on defaults."
+        )
+
+    if calculation == "vc-relax":
+        if not ions_params:
+            warnings.append(
+                "calculation = 'vc-relax' usually requires the &IONS section. Add &IONS unless you intentionally want to rely on defaults."
+            )
+
+        if not cell_params:
+            warnings.append(
+                "calculation = 'vc-relax' usually requires the &CELL section. Add &CELL unless you intentionally want to rely on defaults."
+            )
+            
+    valid_ion_positions = ["default", "from_input"]
+    valid_ion_velocities = ["default", "from_input"]
+    valid_pot_extrapolation = ["atomic", "first_order", "second_order"]
+    valid_wfc_extrapolation = ["none", "first_order", "second_order"]
+
+    if ions_params:
+        if calculation not in ["relax", "md", "vc-relax", "vc-md"]:
+            warnings.append(
+                "&IONS is usually used for relax, md, vc-relax, or vc-md calculations."
+            )
+
+        if has_param(ions_params, "ion_positions"):
+            if ions_params["ion_positions"] not in valid_ion_positions:
+                errors.append("ion_positions must be 'default' or 'from_input'.")
+
+        if has_param(ions_params, "ion_velocities"):
+            if ions_params["ion_velocities"] not in valid_ion_velocities:
+                errors.append("ion_velocities must be 'default' or 'from_input'.")
+
+        if has_param(ions_params, "pot_extrapolation"):
+            if ions_params["pot_extrapolation"] not in valid_pot_extrapolation:
+                errors.append(
+                    "pot_extrapolation must be atomic, first_order, or second_order."
+                )
+
+        if has_param(ions_params, "wfc_extrapolation"):
+            if ions_params["wfc_extrapolation"] not in valid_wfc_extrapolation:
+                errors.append(
+                    "wfc_extrapolation must be none, first_order, or second_order."
+                )
+
+    if cell_params:
+        if calculation not in ["vc-relax", "vc-md"]:
+            warnings.append(
+                "&CELL is usually used for variable-cell calculations: vc-relax or vc-md."
+            )
+
+        if has_param(cell_params, "press_conv_thr"):
+            if float(cell_params["press_conv_thr"]) <= 0:
+                errors.append("press_conv_thr must be positive.")
+
+        valid_cell_dynamics = ["none", "bfgs", "damp-pr", "damp-w", "pr", "w"]
+        if has_param(cell_params, "cell_dynamics"):
+            if cell_params["cell_dynamics"] not in valid_cell_dynamics:
+                errors.append(
+                    "cell_dynamics must be one of: none, bfgs, damp-pr, damp-w, pr, w."
+                )
+
+        valid_cell_dofree = [
+            "all",
+            "ibrav",
+            "a",
+            "b",
+            "c",
+            "fixa",
+            "fixb",
+            "fixc",
+            "x",
+            "y",
+            "z",
+            "xy",
+            "xz",
+            "yz",
+            "xyz",
+            "shape",
+            "volume",
+            "2Dxy",
+            "2Dshape",
+            "epitaxial_ab",
+            "epitaxial_ac",
+            "epitaxial_bc",
+        ]
+
+        if has_param(cell_params, "cell_dofree"):
+            cell_dofree = cell_params["cell_dofree"]
+            valid_exact = cell_dofree in valid_cell_dofree
+            valid_ibrav_combo = cell_dofree.startswith("ibrav+")
+
+            if not valid_exact and not valid_ibrav_combo:
+                errors.append(
+                    f"Invalid cell_dofree value '{cell_dofree}'. "
+                    "Use an official QE option such as all, volume, shape, 2Dxy, or ibrav+option."
+                )
 
     return errors, warnings
 
@@ -395,6 +656,162 @@ def validate_system_settings(ibrav, cell_parameters_text, ecutwfc, ecutrho, calc
 
     return errors, warnings
 
+
+def is_number(value):
+    """
+    Return True if value can be converted to float.
+    """
+    try:
+        float(value)
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
+def has_param(params, key):
+    """
+    Check if a parameter exists and is not empty.
+    """
+    return key in params and params[key] is not None and str(params[key]).strip() != ""
+
+
+def get_lattice_style(system_params):
+    """
+    Determine whether user is using A/B/C style, celldm style, both, or none.
+    """
+    abc_keys = ["A", "B", "C", "cosAB", "cosAC", "cosBC"]
+    celldm_keys = [
+        "celldm(1)",
+        "celldm(2)",
+        "celldm(3)",
+        "celldm(4)",
+        "celldm(5)",
+        "celldm(6)",
+    ]
+
+    used_abc = [key for key in abc_keys if has_param(system_params, key)]
+    used_celldm = [key for key in celldm_keys if has_param(system_params, key)]
+
+    return used_abc, used_celldm
+
+
+def validate_lattice_parameters(system_params, ibrav, use_cell_parameters):
+    """
+    Validate lattice parameters according to QE ibrav rules.
+
+    Official rule:
+    - ibrav = 0: use CELL_PARAMETERS.
+    - ibrav != 0: use either celldm(...) or A/B/C/cos..., but not both.
+    - Only needed values depending on ibrav should be specified.
+    """
+    errors = []
+    warnings = []
+
+    used_abc, used_celldm = get_lattice_style(system_params)
+
+    # Required A/B/C-style parameters for supported ibrav values.
+    # These correspond to QE's A/B/C/cos notation.
+    required_abc_by_ibrav = {
+        1: ["A"],
+        2: ["A"],
+        3: ["A"],
+        -3: ["A"],
+        4: ["A", "C"],
+        5: ["A", "cosAB"],
+        -5: ["A", "cosAB"],
+        6: ["A", "C"],
+        7: ["A", "C"],
+        8: ["A", "B", "C"],
+        9: ["A", "B", "C"],
+        -9: ["A", "B", "C"],
+        91: ["A", "B", "C"],
+        10: ["A", "B", "C"],
+        11: ["A", "B", "C"],
+        12: ["A", "B", "C", "cosAB"],
+        -12: ["A", "B", "C", "cosAC"],
+        13: ["A", "B", "C", "cosAB"],
+        -13: ["A", "B", "C", "cosAC"],
+        14: ["A", "B", "C", "cosAB", "cosAC", "cosBC"],
+    }
+
+    allowed_abc_by_ibrav = required_abc_by_ibrav.copy()
+
+    if ibrav == 0:
+        if used_abc:
+            warnings.append(
+                "For ibrav = 0, A/B/C values are optional only for setting alat. "
+                "The actual lattice vectors must come from CELL_PARAMETERS."
+            )
+
+        if used_celldm:
+            warnings.append(
+                "For ibrav = 0, only celldm(1) is meaningful if used. "
+                "The actual lattice vectors must come from CELL_PARAMETERS."
+            )
+
+        if not use_cell_parameters:
+            errors.append("CELL_PARAMETERS is required when ibrav = 0.")
+
+        return errors, warnings
+
+    if ibrav not in required_abc_by_ibrav:
+        errors.append(
+            f"Unsupported or invalid ibrav value: {ibrav}. "
+            "Use one of the official QE ibrav values: 0, 1, 2, 3, -3, 4, 5, -5, "
+            "6, 7, 8, 9, -9, 91, 10, 11, 12, -12, 13, -13, 14."
+        )
+        return errors, warnings
+
+    if use_cell_parameters:
+        errors.append(
+            "CELL_PARAMETERS must be absent when ibrav is not 0. "
+            "Use A/B/C/cos... or celldm(...) instead."
+        )
+
+    if used_abc and used_celldm:
+        errors.append(
+            "Do not mix A/B/C/cos... parameters with celldm(...) parameters. "
+            "QE requires either celldm(1)-celldm(6) OR A/B/C/cosAB/cosAC/cosBC, not both."
+        )
+
+    required_abc = required_abc_by_ibrav[ibrav]
+    allowed_abc = allowed_abc_by_ibrav[ibrav]
+
+    if used_abc:
+        missing = [key for key in required_abc if key not in used_abc]
+        extra = [key for key in used_abc if key not in allowed_abc]
+
+        if missing:
+            errors.append(
+                f"For ibrav = {ibrav}, the A/B/C style requires: "
+                f"{', '.join(required_abc)}. Missing: {', '.join(missing)}."
+            )
+
+        if extra:
+            errors.append(
+                f"For ibrav = {ibrav}, these A/B/C-style parameters are not needed: "
+                f"{', '.join(extra)}."
+            )
+
+        for key in used_abc:
+            if not is_number(system_params[key]):
+                errors.append(f"{key} must be numeric.")
+
+    elif used_celldm:
+        if not has_param(system_params, "celldm(1)"):
+            errors.append("When using celldm(...), celldm(1) is required.")
+
+        for key in used_celldm:
+            if not is_number(system_params[key]):
+                errors.append(f"{key} must be numeric.")
+
+    else:
+        errors.append(
+            f"For ibrav = {ibrav}, specify lattice parameters using either "
+            "A/B/C/cos... or celldm(...)."
+        )
+
+    return errors, warnings
 
 def get_qe_block_title(line):
     """
@@ -967,9 +1384,9 @@ with st.expander("Optional SYSTEM: spin settings", expanded=False):
     if use_nspin:
         system_params["nspin"] = st.selectbox(
             "nspin",
-            [1, 2, 4],
+            [1, 2],
             index=0,
-            help="1 = non-spin-polarized, 2 = spin-polarized, 4 = noncollinear.",
+            help="1 = non-spin-polarized, 2 = spin-polarized. Noncollinear calculations will be added later.",
         )
 
 
@@ -978,7 +1395,7 @@ with st.expander("Optional SYSTEM: occupations and smearing", expanded=False):
     if use_occupations:
         occupations = st.selectbox(
             "occupations",
-            ["fixed", "smearing", "tetrahedra", "tetrahedra_opt"],
+            ["fixed", "smearing", "tetrahedra", "tetrahedra_lin", "tetrahedra_opt", "from_input"],
             index=0,
         )
         system_params["occupations"] = occupations
@@ -988,9 +1405,17 @@ with st.expander("Optional SYSTEM: occupations and smearing", expanded=False):
                 "smearing",
                 [
                     "gaussian",
+                    "gauss",
                     "methfessel-paxton",
+                    "m-p",
+                    "mp",
                     "marzari-vanderbilt",
+                    "cold",
+                    "m-v",
+                    "mv",
                     "fermi-dirac",
+                    "f-d",
+                    "fd",
                 ],
                 index=0,
             )
@@ -1172,7 +1597,30 @@ if use_cell:
         if use_cell_dofree:
             cell_params["cell_dofree"] = st.selectbox(
                 "cell_dofree",
-                ["all", "x", "y", "z", "xy", "xz", "yz", "xyz", "shape", "volume", "2Dxy"],
+                [
+                    "all",
+                    "ibrav",
+                    "a",
+                    "b",
+                    "c",
+                    "fixa",
+                    "fixb",
+                    "fixc",
+                    "x",
+                    "y",
+                    "z",
+                    "xy",
+                    "xz",
+                    "yz",
+                    "xyz",
+                    "shape",
+                    "volume",
+                    "2Dxy",
+                    "2Dshape",
+                    "epitaxial_ab",
+                    "epitaxial_ac",
+                    "epitaxial_bc",
+                ],
                 index=0,
             )
 
@@ -1364,25 +1812,44 @@ kpoint_errors, kpoint_warnings = validate_k_points(
     k_points_text=k_points,
 )
 
-system_errors, system_warnings = validate_system_settings(
+control_errors, control_warnings = validate_control_parameters(
+    control_params=control_params,
+)
+
+system_param_errors, system_param_warnings = validate_system_parameters(
+    system_params=system_params,
     ibrav=ibrav,
-    cell_parameters_text=cell_parameters,
-    ecutwfc=ecutwfc,
-    ecutrho=ecutrho,
+    use_cell_parameters=use_cell_parameters,
+)
+
+electrons_errors, electrons_warnings = validate_electrons_parameters(
+    electrons_params=electrons_params,
+)
+
+ions_cell_errors, ions_cell_warnings = validate_ions_cell_parameters(
     calculation=calculation,
+    ions_params=ions_params,
+    cell_params=cell_params,
 )
 
 validation_errors.extend(species_errors)
 validation_errors.extend(cell_errors)
 validation_errors.extend(position_errors)
 validation_errors.extend(kpoint_errors)
-validation_errors.extend(system_errors)
+validation_errors.extend(control_errors)
+validation_errors.extend(system_param_errors)
+validation_errors.extend(electrons_errors)
+validation_errors.extend(ions_cell_errors)
+
 
 validation_warnings.extend(species_warnings)
 validation_warnings.extend(cell_warnings)
 validation_warnings.extend(position_warnings)
 validation_warnings.extend(kpoint_warnings)
-validation_warnings.extend(system_warnings)
+validation_warnings.extend(control_warnings)
+validation_warnings.extend(system_param_warnings)
+validation_warnings.extend(electrons_warnings)
+validation_warnings.extend(ions_cell_warnings)
 
 
 # -----------------------------
@@ -1421,12 +1888,12 @@ st.divider()
 st.header("9. 📄 Generated input preview")
 
 st.caption(
-    "You can reorder selected card sections using the arrow buttons, then manually edit the final input before downloading."
+    "You can reorder selected sections using the arrow buttons below, then manually edit the final input before downloading."
 )
 
-st.warning(
-    "Manual edits and section reordering are allowed. Make sure the final input follows the official QE order and syntax."
-)
+# st.warning(
+#     "Manual edits and section reordering are allowed. Make sure the final input follows the official QE order and syntax."
+# )
 
 qe_blocks = split_qe_input_into_blocks(qe_input)
 
@@ -1479,38 +1946,44 @@ final_qe_input = st.text_area(
     help="This exact text will be downloaded.",
 )
 
-st.markdown(
-    "<p style='font-size: 13px; color: #64748b; margin-top: 8px; margin-bottom: 4px;'>Move card sections up or down</p>",
-    unsafe_allow_html=True,
+show_section_mover = st.checkbox(
+    "Do you want to move sections up or down?",
+    value=False,
+    help="Enable this only if you want to reorder ATOMIC_SPECIES, CELL_PARAMETERS, ATOMIC_POSITIONS, or K_POINTS in the final preview.",
 )
 
-for i, section_name in enumerate(st.session_state.card_order):
-    col1, col2, col3 = st.columns([0.45, 3.5, 0.45])
+if show_section_mover:
+    st.markdown(
+        "<p style='font-size: 13px; color: #64748b; margin-top: 8px; margin-bottom: 4px;'>Move card sections up or down</p>",
+        unsafe_allow_html=True,
+    )
 
-    with col1:
-        if st.button("▲", key=f"move_up_{section_name}", disabled=(i == 0)):
-            st.session_state.card_order = move_item(
-                st.session_state.card_order,
-                i,
-                -1,
+    for i, section_name in enumerate(st.session_state.card_order):
+        col1, col2, col3 = st.columns([0.45, 3.5, 0.45])
+
+        with col1:
+            if st.button("▲", key=f"move_up_{section_name}", disabled=(i == 0)):
+                st.session_state.card_order = move_item(
+                    st.session_state.card_order,
+                    i,
+                    -1,
+                )
+                st.rerun()
+
+        with col2:
+            st.markdown(
+                f"<span style='font-size: 13px; color: #475569;'>{i + 1}. {section_name}</span>",
+                unsafe_allow_html=True,
             )
-            st.rerun()
 
-    with col2:
-        st.markdown(
-            f"<span style='font-size: 13px; color: #475569;'>{i + 1}. {section_name}</span>",
-            unsafe_allow_html=True,
-        )
-
-    with col3:
-        if st.button("▼", key=f"move_down_{section_name}", disabled=(i == len(st.session_state.card_order) - 1)):
-            st.session_state.card_order = move_item(
-                st.session_state.card_order,
-                i,
-                1,
-            )
-            st.rerun()
-
+        with col3:
+            if st.button("▼", key=f"move_down_{section_name}", disabled=(i == len(st.session_state.card_order) - 1)):
+                st.session_state.card_order = move_item(
+                    st.session_state.card_order,
+                    i,
+                    1,
+                )
+                st.rerun()
 st.divider()
 
 # -----------------------------
