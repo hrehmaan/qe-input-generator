@@ -1832,6 +1832,7 @@ if use_atomic_species_helper:
         "Elements",
         value="Ba Ti O",
         help="Enter element symbols separated by spaces or commas, for example: Ba Ti O",
+        key="atomic_species_helper_elements",
     )
 
     selected_elements = parse_element_list(element_text)
@@ -1851,17 +1852,32 @@ if use_atomic_species_helper:
                 st.write(f"**{element}** atomic mass: `{mass}`")
 
             pseudo_options = PSEUDO_SUGGESTIONS.get(element, [f"{element}.upf"])
+            pseudo_options_with_other = pseudo_options + ["Other / custom filename"]
 
-            selected_pseudos[element] = st.selectbox(
-                f"{element} pseudopotential file",
-                pseudo_options,
+            pseudo_choice = st.selectbox(
+                f"{element} suggested pseudopotential file",
+                pseudo_options_with_other,
                 index=0,
-                key=f"pseudo_{element}",
+                key=f"pseudo_choice_{element}",
             )
+
+            if pseudo_choice == "Other / custom filename":
+                selected_pseudos[element] = st.text_input(
+                    f"{element} custom pseudopotential filename",
+                    value=f"{element}.UPF",
+                    key=f"pseudo_custom_{element}",
+                    help="Type the exact pseudopotential filename available in your pseudo_dir.",
+                )
+            else:
+                selected_pseudos[element] = pseudo_choice
 
     generated_atomic_species = build_atomic_species_text(
         selected_elements=selected_elements,
         selected_pseudos=selected_pseudos,
+    )
+
+    atomic_species_key = "generated_atomic_species_" + str(
+        abs(hash(generated_atomic_species))
     )
 
     atomic_species = st.text_area(
@@ -1869,6 +1885,7 @@ if use_atomic_species_helper:
         value=generated_atomic_species,
         height=140,
         help="You can edit the generated ATOMIC_SPECIES text before generating the final input.",
+        key=atomic_species_key,
     )
 
 else:
@@ -1879,16 +1896,13 @@ Ti 47.867 Ti.upf
 O 15.999 O.upf""",
         height=120,
         help="Format: Element AtomicMass PseudopotentialFile",
+        key="manual_atomic_species_text_area",
     )
 
-st.caption(
-    "Example format: `Ba 137.327 Ba.upf`"
-)
+st.caption("Example format: `Ba 137.327 Ba.upf`")
 
 st.divider()
 
-
-st.divider()
 # -----------------------------
 # CELL PARAMETERS
 # -----------------------------
