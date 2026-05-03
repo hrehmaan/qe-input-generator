@@ -1,8 +1,9 @@
 
 import streamlit as st
+import streamlit.components.v1 as components
+import requests
 
 from qe_generator import generate_qe_input
-import streamlit.components.v1 as components
 
 ATOMIC_MASSES = {
     "H": 1.008,
@@ -1055,6 +1056,53 @@ st.set_page_config(
     layout="wide",
 )
 
+BACKEND_URL = "http://127.0.0.1:8000"
+
+
+def upload_to_qe_backend(input_text, uploaded_pseudo_files):
+    """
+    Send generated QE input and uploaded pseudopotential files to the backend.
+    """
+    files = []
+
+    for uploaded_file in uploaded_pseudo_files:
+        files.append(
+            (
+                "pseudo_files",
+                (
+                    uploaded_file.name,
+                    uploaded_file.getvalue(),
+                    "application/octet-stream",
+                ),
+            )
+        )
+
+    data = {
+        "input_text": input_text,
+    }
+
+    response = requests.post(
+        f"{BACKEND_URL}/qe-check",
+        data=data,
+        files=files,
+        timeout=30,
+    )
+
+    response.raise_for_status()
+    return response.json()
+
+
+def delete_backend_job(job_id):
+    """
+    Delete temporary files from the backend using job_id.
+    """
+    response = requests.delete(
+        f"{BACKEND_URL}/jobs/{job_id}",
+        timeout=15,
+    )
+
+    response.raise_for_status()
+    return response.json()
 
 st.sidebar.title("⚛️ QE Input Generator")
 
@@ -2235,10 +2283,115 @@ if show_section_mover:
 st.divider()
 
 # -----------------------------
+# ONLINE QE CHECK BACKEND
+# -----------------------------
+
+st.header("10. Online QE check")
+
+st.caption(
+    "Upload the pseudopotential files required by your input. "
+    "The backend stores them temporarily and deletes them automatically after 10 minutes."
+)
+
+uploaded_pseudo_files = st.file_uploader(
+    "Upload required .UPF pseudopotential files",
+    type=["UPF", "upf"],
+    accept_multiple_files=True,
+    help="Upload only the pseudopotential files used in ATOMIC_SPECIES.",
+)
+
+if "qe_backend_job_id" not in st.session_state:
+    st.session_state.qe_backend_job_id = None
+
+if "qe_backend_response" not in st.session_state:
+    st.session_state.qe_backend_response = None
+
+if "qe_backend_delete_message" not in st.session_state:
+    st.session_state.qe_backend_delete_message = None
+
+if st.session_state.qe_backend_delete_message:
+    st.success(st.session_state.qe_backend_delete_message)
+    st.session_state.qe_backend_delete_message = None
+    
+col1, col2 = st.columns(2)
+
+with col1:
+    run_backend_upload = st.button(
+        "Upload files for QE check",
+        disabled=len(validation_errors) > 0,
+        help="Validation errors must be fixed before sending files to the backend.",
+    )
+
+
+if run_backend_upload:
+    if not uploaded_pseudo_files:
+        st.warning("Please upload at least one .UPF pseudopotential file.")
+    else:
+        try:
+            backend_response = upload_to_qe_backend(
+                input_text=final_qe_input,
+                uploaded_pseudo_files=uploaded_pseudo_files,
+            )
+
+            st.session_state.qe_backend_response = backend_response
+            st.session_state.qe_backend_job_id = backend_response.get("job_id")
+
+            st.success("Files uploaded to backend successfully.")
+
+        except requests.exceptions.ConnectionError:
+            st.error(
+                "Could not connect to the backend. Make sure it is running at http://127.0.0.1:8000."
+            )
+
+        except requests.exceptions.RequestException as error:
+            st.error(f"Backend request failed: {error}")
+
+
+if st.session_state.qe_backend_response:
+    response = st.session_state.qe_backend_response
+    job_id = response.get("job_id")
+
+    st.subheader("Backend upload result")
+
+    st.write(f"**Status:** {response.get('status')}")
+    st.write(f"**Job ID:** `{job_id}`")
+    st.write(f"**Auto-delete time:** {response.get('auto_delete_seconds')} seconds")
+
+    uploaded_names = response.get("uploaded_pseudopotentials", [])
+
+    if uploaded_names:
+        st.write("**Uploaded pseudopotential files:**")
+        for filename in uploaded_names:
+            st.write(f"✅ {filename}")
+
+    if st.button(
+        "🗑️ Delete temporary uploaded files from backend",
+        key="delete_backend_files_button",
+    ):
+        try:
+            delete_response = delete_backend_job(job_id)
+
+            st.session_state.qe_backend_delete_message = delete_response.get(
+                "message",
+                "Temporary files deleted successfully.",
+            )
+
+            st.session_state.qe_backend_job_id = None
+            st.session_state.qe_backend_response = None
+
+            st.rerun()
+
+        except requests.exceptions.RequestException as error:
+            st.error(f"Could not delete temporary files: {error}")
+
+st.divider()
+
+
+# -----------------------------
 # DOWNLOAD FILE
 # -----------------------------
 
-st.header("10. ⬇️ Download file")
+st.header("11. ⬇️ Download file")
 st.caption("Choose the output file name and download the generated input file.")
 output_file_name = st.text_input(
     "Output file name, e.g. espresso.pwi",
