@@ -2312,7 +2312,7 @@ if "qe_backend_delete_message" not in st.session_state:
 if st.session_state.qe_backend_delete_message:
     st.success(st.session_state.qe_backend_delete_message)
     st.session_state.qe_backend_delete_message = None
-    
+
 col1, col2 = st.columns(2)
 
 with col1:
@@ -2356,6 +2356,7 @@ if st.session_state.qe_backend_response:
     st.write(f"**Status:** {response.get('status')}")
     st.write(f"**Job ID:** `{job_id}`")
     st.write(f"**Auto-delete time:** {response.get('auto_delete_seconds')} seconds")
+    st.write(f"**Message:** {response.get('message')}")
 
     uploaded_names = response.get("uploaded_pseudopotentials", [])
 
@@ -2364,6 +2365,21 @@ if st.session_state.qe_backend_response:
         for filename in uploaded_names:
             st.write(f"✅ {filename}")
 
+    required_names = response.get("required_pseudopotentials", [])
+    missing_names = response.get("missing_pseudopotentials", [])
+
+    if required_names:
+        st.write("**Required pseudopotential files from ATOMIC_SPECIES:**")
+        for filename in required_names:
+            st.write(f"📌 {filename}")
+
+    if missing_names:
+        st.error("Some required pseudopotential files are missing:")
+        for filename in missing_names:
+            st.write(f"❌ {filename}")
+    else:
+        st.success("All required pseudopotential files were uploaded.")
+        
     if st.button(
         "🗑️ Delete temporary uploaded files from backend",
         key="delete_backend_files_button",

@@ -53,6 +53,58 @@ def safe_filename(filename: str) -> str:
     return Path(filename).name
 
 
+def extract_required_pseudos(input_text: str) -> list[str]:
+    """
+    Extract pseudopotential filenames from the ATOMIC_SPECIES card.
+
+    Expected ATOMIC_SPECIES format:
+        Element  AtomicMass  PseudoFile
+
+    Example:
+        Ba 137.327 Ba.upf
+        Ti 47.867 Ti.upf
+        O 15.999 O.upf
+    """
+    required_pseudos = []
+    lines = input_text.splitlines()
+
+    inside_atomic_species = False
+
+    section_starters = (
+        "&CONTROL",
+        "&SYSTEM",
+        "&ELECTRONS",
+        "&IONS",
+        "&CELL",
+        "ATOMIC_POSITIONS",
+        "CELL_PARAMETERS",
+        "K_POINTS",
+    )
+
+    for line in lines:
+        stripped = line.strip()
+
+        if not stripped:
+            if inside_atomic_species:
+                continue
+            continue
+
+        if stripped.startswith("ATOMIC_SPECIES"):
+            inside_atomic_species = True
+            continue
+
+        if inside_atomic_species:
+            if stripped.startswith(section_starters):
+                break
+
+            parts = stripped.split()
+
+            if len(parts) >= 3:
+                pseudo_file = parts[2]
+                required_pseudos.append(pseudo_file)
+
+    return required_pseudos
+
 def remove_job_dir(job_dir: Path) -> None:
     """
     Delete a temporary job directory.
@@ -116,18 +168,37 @@ async def qe_check(
 
         saved_files.append(filename)
 
+    required_pseudos = extract_required_pseudos(input_text)
+    missing_pseudos = [
+        pseudo for pseudo in required_pseudos if pseudo not in saved_files
+    ]
+
     background_tasks.add_task(
         remove_job_dir_later,
         job_dir,
         AUTO_DELETE_SECONDS,
     )
 
+    if missing_pseudos:
+        return {
+            "status": "missing_pseudopotentials",
+            "job_id": job_id,
+            "message": "Some pseudopotential files required by ATOMIC_SPECIES were not uploaded.",
+            "input_file": "input.pwi",
+            "required_pseudopotentials": required_pseudos,
+            "uploaded_pseudopotentials": saved_files,
+            "missing_pseudopotentials": missing_pseudos,
+            "auto_delete_seconds": AUTO_DELETE_SECONDS,
+        }
+
     return {
-        "status": "uploaded",
+        "status": "ready_for_qe_check",
         "job_id": job_id,
-        "message": "Files uploaded successfully. Temporary files will be deleted automatically after 10 minutes.",
+        "message": "All required pseudopotential files were uploaded. Temporary files will be deleted automatically after 10 minutes.",
         "input_file": "input.pwi",
+        "required_pseudopotentials": required_pseudos,
         "uploaded_pseudopotentials": saved_files,
+        "missing_pseudopotentials": [],
         "auto_delete_seconds": AUTO_DELETE_SECONDS,
     }
 
