@@ -1056,7 +1056,7 @@ st.set_page_config(
     layout="wide",
 )
 
-BACKEND_URL = "http://127.0.0.1:8000"
+BACKEND_URL = st.secrets.get("BACKEND_URL", "http://127.0.0.1:8000")
 
 
 def upload_to_qe_backend(input_text, uploaded_pseudo_files, run_qe=False):
