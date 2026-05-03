@@ -1059,7 +1059,7 @@ st.set_page_config(
 BACKEND_URL = "http://127.0.0.1:8000"
 
 
-def upload_to_qe_backend(input_text, uploaded_pseudo_files):
+def upload_to_qe_backend(input_text, uploaded_pseudo_files, run_qe=False):
     """
     Send generated QE input and uploaded pseudopotential files to the backend.
     """
@@ -1079,6 +1079,7 @@ def upload_to_qe_backend(input_text, uploaded_pseudo_files):
 
     data = {
         "input_text": input_text,
+        "run_qe": str(run_qe).lower(),
     }
 
     response = requests.post(
@@ -2300,6 +2301,15 @@ uploaded_pseudo_files = st.file_uploader(
     help="Upload only the pseudopotential files used in ATOMIC_SPECIES.",
 )
 
+run_qe_online_check = st.checkbox(
+    "Run tiny QE smoke check after upload",
+    value=False,
+    help=(
+        "This requires pw.x to be installed on the backend. "
+        "The check uses a short timeout and does not guarantee convergence."
+    ),
+)
+
 if "qe_backend_job_id" not in st.session_state:
     st.session_state.qe_backend_job_id = None
 
@@ -2331,6 +2341,7 @@ if run_backend_upload:
             backend_response = upload_to_qe_backend(
                 input_text=final_qe_input,
                 uploaded_pseudo_files=uploaded_pseudo_files,
+                run_qe=run_qe_online_check,
             )
 
             st.session_state.qe_backend_response = backend_response
@@ -2379,7 +2390,7 @@ if st.session_state.qe_backend_response:
             st.write(f"❌ {filename}")
     else:
         st.success("All required pseudopotential files were uploaded.")
-        
+
     if st.button(
         "🗑️ Delete temporary uploaded files from backend",
         key="delete_backend_files_button",
