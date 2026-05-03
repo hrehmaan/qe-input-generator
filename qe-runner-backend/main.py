@@ -135,6 +135,40 @@ def extract_nat(input_text: str) -> int | None:
 
     return None
 
+def make_text(value) -> str:
+    """
+    Convert subprocess output to text safely.
+    TimeoutExpired can return bytes, str, or None.
+    """
+    if value is None:
+        return ""
+
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+
+    return str(value)
+
+def extract_calculation(input_text: str) -> str | None:
+    """
+    Extract calculation type from &CONTROL.
+    Example:
+        calculation = 'scf'
+    """
+    for line in input_text.splitlines():
+        stripped = line.strip()
+
+        if stripped.lower().startswith("calculation"):
+            if "=" not in stripped:
+                continue
+
+            value = stripped.split("=", 1)[1]
+            value = value.replace(",", "").strip()
+            value = value.strip("'").strip('"')
+            return value.lower()
+
+    return None
+
+
 def run_qe_smoke_check(job_dir: Path, timeout_seconds: int = 20) -> dict:
     """
     Run a tiny Quantum ESPRESSO smoke check using pw.x.
@@ -343,6 +377,31 @@ async def qe_check(
             "uploaded_pseudopotentials": saved_files,
             "missing_pseudopotentials": missing_pseudos,
             "auto_delete_seconds": AUTO_DELETE_SECONDS,
+        }
+    
+    calculation_type = extract_calculation(input_text)
+
+    heavy_calculations = ["relax", "vc-relax", "md", "vc-md"]
+
+    if run_qe and calculation_type in heavy_calculations:
+        return {
+            "status": "ready_for_qe_check",
+            "job_id": job_id,
+            "message": (
+                f"calculation = '{calculation_type}' is structurally valid, "
+                "but full relaxation/MD calculations are too heavy for the online smoke check."
+            ),
+            "input_file": "input.pwi",
+            "required_pseudopotentials": required_pseudos,
+            "uploaded_pseudopotentials": saved_files,
+            "missing_pseudopotentials": [],
+            "auto_delete_seconds": AUTO_DELETE_SECONDS,
+            "qe_run_status": "qe_too_large_for_online_check",
+            "qe_run_message": (
+                f"The online smoke check does not run '{calculation_type}' jobs. "
+                "Use 'scf' for the online smoke check, or download this input and run it locally, in Docker, or on HPC."
+            ),
+            "qe_output_excerpt": "",
         }
 
     qe_result = {
