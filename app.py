@@ -2265,6 +2265,36 @@ st.download_button(
     disabled=download_disabled,
 )
 
+# ADDING VALIDATION CHECKLIST
+
+st.subheader("Validation checks passed by script")
+
+if validation_errors:
+    st.error("The input file did not pass all validation checks.")
+    st.write("❌ Please fix the validation errors shown above before downloading.")
+else:
+    st.success("The input file passed all structural validation checks.")
+
+    validation_checklist = [
+        "ATOMIC_SPECIES format check passed",
+        "ntyp matches the number of ATOMIC_SPECIES lines",
+        "ATOMIC_POSITIONS format check passed",
+        "nat matches the number of ATOMIC_POSITIONS lines",
+        "All ATOMIC_POSITIONS elements exist in ATOMIC_SPECIES",
+        "CELL_PARAMETERS / ibrav rule check passed",
+        "K_POINTS format check passed",
+        "CONTROL parameter checks passed",
+        "SYSTEM parameter checks passed",
+        "ELECTRONS parameter checks passed",
+        "IONS / CELL consistency checks passed",
+    ]
+
+    for item in validation_checklist:
+        st.write(f"✅ {item}")
+
+
+
+
 st.divider()
 
 st.markdown(
