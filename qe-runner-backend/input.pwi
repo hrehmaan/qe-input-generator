@@ -1,0 +1,17 @@
+&CONTROL
+    calculation = 'scf'
+    pseudo_dir = './'
+/
+&SYSTEM
+    ibrav = 1
+    nat = 1
+    ntyp = 1
+    ecutwfc = 30
+/
+&ELECTRONS
+/
+ATOMIC_SPECIES
+Ba 137.327 Ba.upf
+ATOMIC_POSITIONS angstrom
+Ba 0.0 0.0 0.0
+K_POINTS gamma
