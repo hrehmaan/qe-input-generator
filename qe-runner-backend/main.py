@@ -190,19 +190,27 @@ def run_qe_smoke_check(job_dir: Path, timeout_seconds: int = 20) -> dict:
         output_text = ""
 
         if error.stdout:
-            output_text += error.stdout
+            if isinstance(error.stdout, bytes):
+                output_text += error.stdout.decode("utf-8", errors="replace")
+            else:
+                output_text += str(error.stdout)
 
         if error.stderr:
-            output_text += error.stderr
+            if isinstance(error.stderr, bytes):
+                output_text += error.stderr.decode("utf-8", errors="replace")
+            else:
+                output_text += str(error.stderr)
 
-        output_path.write_text(output_text, encoding="utf-8")
+        output_path.write_text(output_text, encoding="utf-8", errors="replace")
 
         return {
             "qe_run_status": "qe_timeout",
-            "qe_run_message": f"pw.x started but exceeded the {timeout_seconds}-second timeout.",
+            "qe_run_message": (
+                f"pw.x started but exceeded the {timeout_seconds}-second online smoke-check limit. "
+                "The input may still be valid, but this calculation is too large or too slow for the online check."
+            ),
             "qe_output_excerpt": output_text[-3000:],
         }
-
     except Exception as error:
         return {
             "qe_run_status": "qe_failed",
