@@ -17,6 +17,8 @@ import asyncio
 import shutil
 import subprocess
 import uuid
+import time
+import psutil
 from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, UploadFile
@@ -44,6 +46,11 @@ BASE_JOB_DIR = Path("qe_jobs")
 BASE_JOB_DIR.mkdir(parents=True, exist_ok=True)
 
 AUTO_DELETE_SECONDS = 600  # 10 minutes
+QE_TIMEOUT_SECONDS = 60
+MAX_MEMORY_PERCENT = 85
+MAX_CPU_PERCENT = 93
+RESOURCE_CHECK_INTERVAL_SECONDS = 1
+
 
 MAX_ATOMS_FOR_QE_CHECK = 30
 MAX_UPLOADED_PSEUDO_FILES = 10
@@ -168,90 +175,249 @@ def extract_calculation(input_text: str) -> str | None:
 
     return None
 
-
-def run_qe_smoke_check(job_dir: Path, timeout_seconds: int = 20) -> dict:
+def classify_qe_output(output_text: str) -> str:
     """
-    Run a tiny Quantum ESPRESSO smoke check using pw.x.
+    Classify QE output based on common markers.
+    """
+    lower_output = output_text.lower()
 
-    This does not guarantee convergence or physical correctness.
-    It only checks whether pw.x can start reading/running the input.
+    if "job done" in lower_output:
+        return "completed"
 
-    Requirements:
-    - pw.x must be installed and available in PATH.
-    - required pseudopotential files must exist in the job directory.
+    if "convergence has been achieved" in lower_output:
+        return "converged"
+
+    if "error" in lower_output or "%%%%%%" in lower_output:
+        return "error"
+
+    if "program pwscf" in lower_output:
+        return "started"
+
+    if "reading input from" in lower_output:
+        return "started"
+
+    if "number of atoms/cell" in lower_output:
+        return "started"
+
+    return "unknown"
+
+
+def make_text(value) -> str:
+    """
+    Convert subprocess output to text safely.
+    TimeoutExpired can return bytes, str, or None.
+    """
+    if value is None:
+        return ""
+
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+
+    return str(value)
+
+
+def classify_qe_output(output_text: str) -> str:
+    """
+    Classify QE output based on common Quantum ESPRESSO markers.
+    """
+    lower_output = output_text.lower()
+
+    if "job done" in lower_output:
+        return "completed"
+
+    if "convergence has been achieved" in lower_output:
+        return "converged"
+
+    if "error" in lower_output or "%%%%%%" in lower_output:
+        return "error"
+
+    if "program pwscf" in lower_output:
+        return "started"
+
+    if "reading input from" in lower_output:
+        return "started"
+
+    if "number of atoms/cell" in lower_output:
+        return "started"
+
+    return "unknown"
+
+
+def run_qe_smoke_check(job_dir: Path, timeout_seconds: int = QE_TIMEOUT_SECONDS) -> dict:
+    """
+    Run Quantum ESPRESSO for a short monitored smoke check.
+
+    The goal is not to finish the simulation.
+    The goal is to confirm that pw.x can start reading/running the generated input.
     """
     pwx_path = shutil.which("pw.x")
 
     if pwx_path is None:
         return {
             "qe_run_status": "qe_not_available",
-            "qe_run_message": "pw.x was not found on this backend. Install Quantum ESPRESSO or use a Docker backend.",
+            "qe_run_message": "pw.x was not found on this backend.",
             "qe_output_excerpt": "",
         }
 
     input_path = job_dir / "input.pwi"
     output_path = job_dir / "qe_check.out"
 
+    output_chunks = []
+    start_time = time.time()
+    stop_reason = None
+    max_memory_seen = 0.0
+    max_cpu_seen = 0.0
+
+    process = subprocess.Popen(
+        [pwx_path, "-inp", input_path.name],
+        cwd=job_dir,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+
+    ps_process = psutil.Process(process.pid)
+
     try:
-        result = subprocess.run(
-            [pwx_path, "-inp", str(input_path.name)],
-            cwd=job_dir,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            timeout=timeout_seconds,
-        )
+        while True:
+            elapsed = time.time() - start_time
 
-        output_text = result.stdout or ""
-        output_path.write_text(output_text, encoding="utf-8")
+            # Read available output line by line if possible
+            if process.stdout is not None:
+                line = process.stdout.readline()
+                if line:
+                    output_chunks.append(line)
 
-        output_excerpt = output_text[-3000:]
+            # Check whether QE finished
+            return_code = process.poll()
+            if return_code is not None:
+                # Read remaining output
+                if process.stdout is not None:
+                    remaining_output = process.stdout.read()
+                    if remaining_output:
+                        output_chunks.append(remaining_output)
 
-        if result.returncode == 0:
-            return {
-                "qe_run_status": "qe_started_successfully",
-                "qe_run_message": "pw.x ran successfully within the short backend check.",
-                "qe_output_excerpt": output_excerpt,
-            }
+                output_text = "".join(output_chunks)
+                output_path.write_text(output_text, encoding="utf-8", errors="replace")
 
-        return {
-            "qe_run_status": "qe_failed",
-            "qe_run_message": f"pw.x ran but returned exit code {result.returncode}.",
-            "qe_output_excerpt": output_excerpt,
-        }
+                output_class = classify_qe_output(output_text)
 
-    except subprocess.TimeoutExpired as error:
-        output_text = ""
+                if return_code == 0:
+                    return {
+                        "qe_run_status": "qe_completed",
+                        "qe_run_message": "pw.x completed successfully within the online smoke-check limit.",
+                        "qe_output_excerpt": output_text[-3000:],
+                        "resource_summary": {
+                            "max_memory_percent": max_memory_seen,
+                            "max_cpu_percent": max_cpu_seen,
+                            "elapsed_seconds": round(elapsed, 2),
+                        },
+                    }
 
-        if error.stdout:
-            if isinstance(error.stdout, bytes):
-                output_text += error.stdout.decode("utf-8", errors="replace")
-            else:
-                output_text += str(error.stdout)
+                return {
+                    "qe_run_status": "qe_failed",
+                    "qe_run_message": f"pw.x stopped with exit code {return_code}.",
+                    "qe_output_excerpt": output_text[-3000:],
+                    "resource_summary": {
+                        "max_memory_percent": max_memory_seen,
+                        "max_cpu_percent": max_cpu_seen,
+                        "elapsed_seconds": round(elapsed, 2),
+                        "output_class": output_class,
+                    },
+                }
 
-        if error.stderr:
-            if isinstance(error.stderr, bytes):
-                output_text += error.stderr.decode("utf-8", errors="replace")
-            else:
-                output_text += str(error.stderr)
+            # Resource usage
+            memory_percent = psutil.virtual_memory().percent
+            cpu_percent = psutil.cpu_percent(interval=0.1)
 
+            max_memory_seen = max(max_memory_seen, memory_percent)
+            max_cpu_seen = max(max_cpu_seen, cpu_percent)
+
+            if memory_percent >= MAX_MEMORY_PERCENT:
+                stop_reason = (
+                    f"Memory usage reached {memory_percent:.1f}% "
+                    f"and exceeded the safety limit of {MAX_MEMORY_PERCENT}%."
+                )
+                process.terminate()
+                break
+
+            if cpu_percent >= MAX_CPU_PERCENT:
+                stop_reason = (
+                    f"CPU usage reached {cpu_percent:.1f}% "
+                    f"and exceeded the safety limit of {MAX_CPU_PERCENT}%."
+                )
+                process.terminate()
+                break
+
+            if elapsed >= timeout_seconds:
+                stop_reason = (
+                    f"pw.x exceeded the {timeout_seconds}-second online smoke-check limit."
+                )
+                process.terminate()
+                break
+
+            time.sleep(RESOURCE_CHECK_INTERVAL_SECONDS)
+
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+
+        if process.stdout is not None:
+            remaining_output = process.stdout.read()
+            if remaining_output:
+                output_chunks.append(remaining_output)
+
+        output_text = "".join(output_chunks)
         output_path.write_text(output_text, encoding="utf-8", errors="replace")
 
+        output_class = classify_qe_output(output_text)
+
+        if output_class in ["started", "converged", "completed"]:
+            status = "qe_started_but_stopped"
+            message = (
+                "pw.x started successfully and produced valid Quantum ESPRESSO output. "
+                f"The online check stopped early: {stop_reason}"
+            )
+        else:
+            status = "qe_stopped"
+            message = (
+                "pw.x was stopped during the online smoke check. "
+                f"Reason: {stop_reason}"
+            )
+
         return {
-            "qe_run_status": "qe_timeout",
-            "qe_run_message": (
-                f"pw.x started but exceeded the {timeout_seconds}-second online smoke-check limit. "
-                "The input may still be valid, but this calculation is too large or too slow for the online check."
-            ),
+            "qe_run_status": status,
+            "qe_run_message": message,
             "qe_output_excerpt": output_text[-3000:],
+            "resource_summary": {
+                "max_memory_percent": max_memory_seen,
+                "max_cpu_percent": max_cpu_seen,
+                "elapsed_seconds": round(time.time() - start_time, 2),
+                "output_class": output_class,
+                "stop_reason": stop_reason,
+            },
         }
+
     except Exception as error:
+        try:
+            process.kill()
+        except Exception:
+            pass
+
+        output_text = "".join(output_chunks)
+
         return {
             "qe_run_status": "qe_failed",
-            "qe_run_message": f"Unexpected backend error while running pw.x: {error}",
-            "qe_output_excerpt": "",
-        }
-    
+            "qe_run_message": f"Backend error while monitoring pw.x: {type(error).__name__}: {error}",
+            "qe_output_excerpt": output_text[-3000:],
+            "resource_summary": {
+                "max_memory_percent": max_memory_seen,
+                "max_cpu_percent": max_cpu_seen,
+                "elapsed_seconds": round(time.time() - start_time, 2),
+            },
+        }    
 
 def remove_job_dir(job_dir: Path) -> None:
     """
@@ -411,7 +577,7 @@ async def qe_check(
     }
 
     if run_qe:
-        qe_result = run_qe_smoke_check(job_dir=job_dir, timeout_seconds=20)
+        qe_result = run_qe_smoke_check(job_dir=job_dir, timeout_seconds=QE_TIMEOUT_SECONDS)
 
     return {
         "status": "ready_for_qe_check",

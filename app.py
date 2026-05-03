@@ -1060,7 +1060,7 @@ try:
     BACKEND_URL = st.secrets["BACKEND_URL"]
 except Exception:
     BACKEND_URL = "http://127.0.0.1:8000"
-    
+
 MAX_ATOMS_FOR_QE_CHECK = 30
 MAX_UPLOADED_PSEUDO_FILES = 10
 MAX_PSEUDO_FILE_SIZE_MB = 20
@@ -2450,6 +2450,18 @@ if st.session_state.qe_backend_response:
                 height=250,
                 key=f"qe_output_excerpt_{job_id}",
             )
+        
+        resource_summary = response.get("resource_summary")
+
+        if resource_summary:
+            st.subheader("Backend resource summary")
+            st.write(f"Maximum memory usage: {resource_summary.get('max_memory_percent')}%")
+            st.write(f"Maximum CPU usage: {resource_summary.get('max_cpu_percent')}%")
+            st.write(f"Elapsed time: {resource_summary.get('elapsed_seconds')} seconds")
+
+            if resource_summary.get("stop_reason"):
+                st.write(f"Stop reason: {resource_summary.get('stop_reason')}")
+
 
     uploaded_names = response.get("uploaded_pseudopotentials", [])
 
