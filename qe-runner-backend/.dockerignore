@@ -1,0 +1,6 @@
+.venv
+__pycache__
+*.pyc
+qe_jobs
+tmp
+.DS_Store

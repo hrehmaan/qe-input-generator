@@ -1086,7 +1086,7 @@ def upload_to_qe_backend(input_text, uploaded_pseudo_files, run_qe=False):
         f"{BACKEND_URL}/qe-check",
         data=data,
         files=files,
-        timeout=30,
+        timeout=60,
     )
 
     response.raise_for_status()
@@ -2368,6 +2368,30 @@ if st.session_state.qe_backend_response:
     st.write(f"**Job ID:** `{job_id}`")
     st.write(f"**Auto-delete time:** {response.get('auto_delete_seconds')} seconds")
     st.write(f"**Message:** {response.get('message')}")
+
+    qe_run_status = response.get("qe_run_status")
+    qe_run_message = response.get("qe_run_message")
+    qe_output_excerpt = response.get("qe_output_excerpt")
+
+    if qe_run_status and qe_run_status != "not_requested":
+        st.subheader("Tiny QE smoke-check result")
+
+        if qe_run_status == "qe_started_successfully":
+            st.success(qe_run_message)
+        elif qe_run_status == "qe_not_available":
+            st.warning(qe_run_message)
+        elif qe_run_status == "qe_timeout":
+            st.warning(qe_run_message)
+        else:
+            st.error(qe_run_message)
+
+        if qe_output_excerpt:
+            st.text_area(
+                "QE output excerpt",
+                value=qe_output_excerpt,
+                height=250,
+                key=f"qe_output_excerpt_{job_id}",
+            )
 
     uploaded_names = response.get("uploaded_pseudopotentials", [])
 
