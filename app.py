@@ -904,9 +904,13 @@ st.sidebar.markdown(
     3. Preview the generated file
     4. Download the file
 
-    **Official documentation**
+    **GitHub**
+    - [Input Generator Repo](https://github.com/hrehmaan/qe-input-generator)
+    - [Quantum ESPRESSO Docker Environment](https://github.com/hrehmaan/qe-docker)
 
-    [Quantum ESPRESSO INPUT_PW](https://www.quantum-espresso.org/Doc/INPUT_PW.html)
+    **Official documentation**
+    - [Quantum ESPRESSO Instructions](https://www.quantum-espresso.org/Doc/INPUT_PW.html)
+    - [Source repository](https://gitlab.com/QEF/q-e)
     """
 )
 
