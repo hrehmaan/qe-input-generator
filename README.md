@@ -4,6 +4,10 @@ A beginner-friendly browser-based GUI for generating, validating, editing, downl
 
 The app helps users prepare Quantum ESPRESSO input files without writing the full script manually.
 
+For Docker-based Quantum ESPRESSO installation and usage, see:
+
+[QE Docker Setup](https://github.com/hrehmaan/qe-docker)
+
 ---
 
 ## Use the app online
