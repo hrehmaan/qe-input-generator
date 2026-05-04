@@ -1148,6 +1148,152 @@ st.set_page_config(
     layout="wide",
 )
 
+# -----------------------------
+# GLOBAL APP STYLING
+# -----------------------------
+
+st.markdown(
+    """
+    <style>
+    /* Main app background */
+    
+    .stApp {
+        background: #f8fafc;
+    }
+
+    /* Main content spacing */
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 4rem;
+        max-width: 1180px;
+    }
+
+    /* Section card */
+    .qe-section-card {
+        border: 1px solid #e2e8f0;
+        background: #ffffff;
+        border-radius: 18px;
+        padding: 18px 20px;
+        margin: 24px 0 14px 0;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+    }
+
+    .qe-section-card h3 {
+        margin: 0 0 5px 0;
+        color: #0f172a;
+        font-size: 1.08rem;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+    }
+
+    .qe-section-card p {
+        margin: 0;
+        color: #64748b;
+        font-size: 0.90rem;
+        line-height: 1.45;
+    }
+
+    /* Helper tool card */
+    .qe-helper-box {
+        border: 2px solid #38bdf8;
+        background: #eff6ff;
+        border-radius: 18px;
+        padding: 18px 20px;
+        margin: 18px 0 18px 0;
+        box-shadow: 0 10px 26px rgba(14, 165, 233, 0.12);
+    }
+
+    .qe-helper-badge {
+        display: inline-block;
+        background: #0284c7;
+        color: #ffffff;
+        padding: 5px 11px;
+        border-radius: 999px;
+        font-size: 0.76rem;
+        font-weight: 800;
+        margin-bottom: 10px;
+    }
+
+    .qe-helper-title {
+        font-size: 1.08rem;
+        font-weight: 850;
+        color: #0f172a;
+        margin-bottom: 6px;
+    }
+
+    .qe-helper-subtitle {
+        color: #334155;
+        font-size: 0.92rem;
+        line-height: 1.5;
+    }
+    /* Success/result card */
+    .qe-result-box {
+        border: 1px solid rgba(34, 197, 94, 0.32);
+        background:
+            linear-gradient(135deg, rgba(34,197,94,0.10), rgba(16,185,129,0.06)),
+            rgba(255,255,255,0.9);
+        border-radius: 18px;
+        padding: 16px 18px;
+        margin: 14px 0;
+        box-shadow: 0 10px 26px rgba(22, 163, 74, 0.08);
+        color: #064e3b;
+    }
+
+    .qe-warning-box {
+        border: 1px solid rgba(245, 158, 11, 0.35);
+        background:
+            linear-gradient(135deg, rgba(245,158,11,0.13), rgba(251,191,36,0.08)),
+            rgba(255,255,255,0.9);
+        border-radius: 18px;
+        padding: 16px 18px;
+        margin: 14px 0;
+        color: #78350f;
+    }
+
+    /* Buttons */
+    div.stButton > button {
+        border-radius: 12px;
+        font-weight: 800;
+        min-height: 2.75rem;
+        border: 1px solid #cbd5e1;
+        box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+    }
+
+    div.stButton > button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 22px rgba(15, 23, 42, 0.12);
+    }
+
+    /* Text areas */
+    textarea {
+        border-radius: 14px !important;
+        font-family: "Menlo", "Monaco", "Consolas", monospace !important;
+        font-size: 0.88rem !important;
+    }
+
+    /* Inputs/selectboxes */
+    div[data-baseweb="input"] {
+        border-radius: 12px;
+    }
+
+    /* Dividers */
+    hr {
+        margin: 2rem 0;
+        border-color: rgba(148, 163, 184, 0.25);
+    }
+
+    /* Small code labels */
+    code {
+        border-radius: 6px;
+        padding: 2px 6px;
+        background: rgba(15, 23, 42, 0.06);
+        color: #0f172a;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 try:
     BACKEND_URL = st.secrets["BACKEND_URL"]
 except Exception:
@@ -1481,7 +1627,17 @@ components.html(
 # CONTROL SECTION
 # -----------------------------
 
-st.header("1. CONTROL section")
+st.markdown(
+    """
+    <div class="qe-section-card">
+        <h3>1. CONTROL section</h3>
+        <p>Choose the calculation type, output folder, prefix, and pseudopotential directory.</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+# st.markdown("### 1. CONTROL section")
 
 col1, col2 = st.columns(2)
 
@@ -1584,7 +1740,17 @@ st.divider()
 # SYSTEM SECTION
 # -----------------------------
 
-st.header("2. SYSTEM section")
+st.markdown(
+    """
+    <div class="qe-section-card">
+        <h3>2. SYSTEM section</h3>
+        <p>Define the crystal cell, number of atoms, number of species, and cutoff energies.</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+# st.header("2. SYSTEM section")
 
 col1, col2, col3 = st.columns(3)
 
@@ -1806,7 +1972,17 @@ st.divider()
 # ELECTRONS SECTION
 # -----------------------------
 
-st.header("3. ELECTRONS section")
+st.markdown(
+    """
+    <div class="qe-section-card">
+        <h3>3. ELECTRONS section</h3>
+        <p>Set convergence threshold, mixing beta, and electronic iteration settings.</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+# st.header("3. ELECTRONS section")
 
 col1, col2 = st.columns(2)
 
@@ -1893,7 +2069,15 @@ st.divider()
 # IONS AND CELL SECTION
 # -----------------------------
 
-st.header("4. IONS and CELL section")
+st.markdown(
+    """
+    <div class="qe-section-card">
+        <h3>4. IONS and CELL section</h3>
+        <p>Optional settings for ionic relaxation, molecular dynamics, and cell relaxation calculations.</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 ions_params = {}
 cell_params = {}
@@ -2021,14 +2205,51 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.info(
-    "Pseudopotential filenames are suggestions only. Make sure the selected files exist in your pseudo_dir and are suitable for your calculation."
+# st.info(
+#     "Pseudopotential filenames are suggestions only. Make sure the selected files exist in your pseudo_dir and are suitable for your calculation."
+# )
+
+# st.markdown(
+#     """
+#     <div class="qe-helper-box">
+#         <div class="qe-helper-badge">Helper tool</div>
+#         <div class="qe-helper-title">🧪 ATOMIC_SPECIES helper</div>
+#         <div class="qe-helper-subtitle">
+#             Build the ATOMIC_SPECIES section automatically using selected elements,
+#             built-in atomic masses, and editable pseudopotential filenames.
+#         </div>
+#     </div>
+#     """,
+#     unsafe_allow_html=True,
+# )
+
+st.markdown(
+    """
+    <div class="qe-helper-box">
+        <div class="qe-helper-badge">Optional helper</div>
+        <div class="qe-helper-title">🧪 ATOMIC_SPECIES helper</div>
+        <div class="qe-helper-subtitle">
+            <ul style="margin: 8px 0 0 18px; padding: 0;">
+                <li>Builds ATOMIC_SPECIES from selected elements.</li>
+                <li>Uses built-in atomic masses.</li>
+                <li>Lets you edit or enter custom pseudopotential filenames.</li>
+                <li>Pseudopotential filenames are suggestions only; uploaded files must match your final names.</li>
+            </ul>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
+# st.info("Optional helper: turn this on if you want the app to build ATOMIC_SPECIES automatically.")
 
 use_atomic_species_helper = st.checkbox(
-    "Use ATOMIC_SPECIES helper",
+    "🧪 Enable automatic ATOMIC_SPECIES builder",
     value=False,
-    help="Automatically build ATOMIC_SPECIES from selected elements and pseudopotential filenames.",
+    help=(
+        "Turn this on to build ATOMIC_SPECIES automatically. "
+        "Pseudopotential filenames are suggestions only; make sure the files exist "
+        "in your pseudo_dir or are uploaded for the online QE check."
+    ),
 )
 
 if use_atomic_species_helper:
@@ -2111,7 +2332,23 @@ st.divider()
 # Fetching the Data 
 #------------------------------
 
-st.markdown("### Materials Project structure helper")
+st.markdown(
+    """
+    <div class="qe-helper-box">
+        <div class="qe-helper-badge">Optional structure import</div>
+        <div class="qe-helper-title">🌐 Materials Project structure helper</div>
+        <div class="qe-helper-subtitle">
+            <ul style="margin: 8px 0 0 18px; padding: 0;">
+                <li>Fetches lattice vectors and atomic positions using a Materials Project ID.</li>
+                <li>Can use the structure as fetched or convert it to a conventional standard cell.</li>
+                <li>Fills CELL_PARAMETERS, ATOMIC_POSITIONS, nat, ntyp, and detected elements.</li>
+            </ul>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
 
 st.caption(
     "Optional: fetch lattice vectors and fractional atomic positions using a Materials Project material ID."
@@ -2122,15 +2359,16 @@ st.markdown(
     "to search for a material and copy its material ID, for example `mp-34202`."
 )
 
-st.info(
-    "Materials Project structures are imported as CELL_PARAMETERS angstrom "
-    "and ATOMIC_POSITIONS crystal. Use ibrav = 0 for these imported structures."
-)
+
 
 use_mp_helper = st.checkbox(
-    "Fetch structure from Materials Project",
+    "🌐 Enable Materials Project structure fetcher",
     value=False,
-    help="Use your own Materials Project API key and material ID to fetch CELL_PARAMETERS and ATOMIC_POSITIONS.",
+    help=(
+        "Optional: fetch lattice vectors and fractional atomic positions using a Materials Project material ID. "
+        "Fetched structures are written as CELL_PARAMETERS angstrom and ATOMIC_POSITIONS crystal. "
+        "Use ibrav = 0 for imported structures."
+    ),
 )
 
 if use_mp_helper:
@@ -2175,7 +2413,15 @@ if use_mp_helper:
 
     st.session_state.mp_structure_representation = structure_representation
 
-    if st.button("Fetch structure from Materials Project"):
+    fetch_mp_structure = st.button(
+        "🌐 Fetch structure now",
+        type="primary",
+        use_container_width=True,
+    )
+
+    st.caption("This will fill CELL_PARAMETERS, ATOMIC_POSITIONS, nat, ntyp, and detected elements.")
+
+    if fetch_mp_structure:
         if not mp_api_key.strip():
             st.error("Please enter your Materials Project API key.")
         elif not mp_material_id.strip():
@@ -2213,6 +2459,20 @@ if use_mp_helper:
                     f"elements = {', '.join(elements)}"
                 )
 
+                st.markdown(
+                    f"""
+                    <div class="qe-result-box">
+                        <strong>✅ Fetched structure summary</strong><br><br>
+                        Material ID: <code>{mp_material_id}</code><br>
+                        Representation: <code>{structure_representation}</code><br>
+                        nat: <code>{len(structure)}</code><br>
+                        ntyp: <code>{len(elements)}</code><br>
+                        Elements: <code>{", ".join(elements)}</code>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
                 st.info(
                     "Generated from [Materials Project](https://next-gen.materialsproject.org/) "
                     "structure data using "
@@ -2235,11 +2495,22 @@ if use_mp_helper:
             f"elements = {', '.join(st.session_state.mp_detected_elements)}"
         )
 
+st.divider()
 # -----------------------------
 # CELL PARAMETERS
 # -----------------------------
 
-st.header("5. CELL_PARAMETERS section")
+st.markdown(
+    """
+    <div class="qe-section-card">
+        <h3>6. CELL_PARAMETERS section</h3>
+        <p>Define the lattice vectors when using <code>ibrav = 0</code>. Imported Materials Project structures use angstrom units.</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+# st.header("5. CELL_PARAMETERS section")
 
 use_cell_parameters_default = ibrav == 0
 
@@ -2291,7 +2562,18 @@ st.divider()
 # ATOMIC POSITIONS
 # -----------------------------
 
-st.header("6. ATOMIC_POSITIONS section")
+st.markdown(
+    """
+    <div class="qe-section-card">
+        <h3>7. ATOMIC_POSITIONS section</h3>
+        <p>List one line per atom. Each line contains the element symbol and its x, y, z coordinates.</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+# st.header("6. ATOMIC_POSITIONS section")
 
 atomic_positions_type = st.selectbox(
     "ATOMIC_POSITIONS type",
@@ -2331,11 +2613,19 @@ st.divider()
 # K POINTS
 # -----------------------------
 
-# -----------------------------
-# K POINTS
-# -----------------------------
 
-st.header("7. K_POINTS section")
+st.markdown(
+    """
+    <div class="qe-section-card">
+        <h3>8. K_POINTS section</h3>
+        <p>Choose the Brillouin-zone sampling mode, such as automatic grid or gamma-only calculation.</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+# st.header("7. K_POINTS section")
 
 k_points_type = st.selectbox(
     "K_POINTS type",
@@ -2461,7 +2751,15 @@ validation_warnings.extend(ions_cell_warnings)
 # SHOW VALIDATION AND PREVIEW
 # -----------------------------
 
-st.header("8. Validation and generated Quantum ESPRESSO input file")
+st.markdown(
+    """
+    <div class="qe-section-card">
+        <h3>9. Validation and generated Quantum ESPRESSO input file</h3>
+        <p>Review validation results and inspect the final generated QE input before download or online checking.</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 st.markdown(
     """
@@ -2476,7 +2774,15 @@ if validation_errors:
     for error in validation_errors:
         st.write(f"❌ {error}")
 else:
-    st.success("No critical formatting errors detected. The file structure looks consistent.")
+    st.markdown(
+        """
+        <div class="qe-result-box">
+            <strong>✅ Validation checks passed</strong><br>
+            No critical formatting errors were detected. The generated input structure looks consistent.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 if validation_warnings:
     st.warning("The input can still be generated, but please review these warning(s):")
@@ -2490,7 +2796,17 @@ st.divider()
 # SHOW PREVIEW
 # -----------------------------
 
-st.header("9. 📄 Generated input preview")
+st.markdown(
+    """
+    <div class="qe-section-card">
+        <h3>10. Final QE input preview 📄 </h3>
+        <p>Review and edit the generated Quantum ESPRESSO input before downloading or running the online check.</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+# st.header("9. 📄 Generated input preview")
 
 st.caption(
     "You can reorder selected sections using the arrow buttons below, then manually edit the final input before downloading."
@@ -2595,7 +2911,17 @@ st.divider()
 # ONLINE QE CHECK BACKEND
 # -----------------------------
 
-st.header("10. Online QE check")
+st.markdown(
+    """
+    <div class="qe-section-card">
+        <h3>11. Online QE smoke check</h3>
+        <p>Upload required pseudopotential files and run a short backend check to confirm that QE can start reading the input.</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+# st.header("10. Online QE check")
 
 st.caption(
     "Upload the pseudopotential files required by your input. "
@@ -2641,7 +2967,9 @@ col1, col2 = st.columns(2)
 
 with col1:
     run_backend_upload = st.button(
-        "Upload files for QE check",
+        "🚀 Upload files and run online QE check",
+        type="primary",
+        use_container_width=True,
         disabled=len(validation_errors) > 0,
         help="Validation errors must be fixed before sending files to the backend.",
     )
@@ -2760,8 +3088,9 @@ if st.session_state.qe_backend_response:
         st.success("All required pseudopotential files were uploaded.")
 
     if st.button(
-        "🗑️ Delete temporary uploaded files from backend",
+        "🗑️ Delete temporary backend files",
         key="delete_backend_files_button",
+        use_container_width=True,
     ):
         try:
             delete_response = delete_backend_job(job_id)
@@ -2786,7 +3115,17 @@ st.divider()
 # DOWNLOAD FILE
 # -----------------------------
 
-st.header("11. ⬇️ Download file")
+st.markdown(
+    """
+    <div class="qe-section-card">
+        <h3>12. Download file ⬇️ </h3>
+        <p>Download the generated Quantum ESPRESSO input file after reviewing the validation results.</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+# st.header("11. ⬇️ Download file")
 st.caption("Choose the output file name and download the generated input file.")
 output_file_name = st.text_input(
     "Output file name, e.g. espresso.pwi",
