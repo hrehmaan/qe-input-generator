@@ -4,7 +4,9 @@ import streamlit.components.v1 as components
 import requests
 
 from mp_api.client import MPRester
+from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 from qe_generator import generate_qe_input
+
 
 ATOMIC_MASSES = {
     "H": 1.008,
@@ -133,6 +135,30 @@ def fetch_materials_project_structure(api_key, material_id):
         )
 
     return structure
+
+def apply_structure_representation(structure, representation):
+    """
+    Apply selected structure representation.
+
+    Options:
+    - As fetched from Materials Project
+    - Conventional standard cell
+    """
+    if representation == "As fetched from Materials Project":
+        return structure
+
+    if representation == "Conventional standard cell":
+        analyzer = SpacegroupAnalyzer(
+            structure,
+            symprec=0.1,
+            angle_tolerance=5,
+        )
+
+        return analyzer.get_conventional_standard_structure()
+
+    return structure
+
+
 
 def structure_to_qe_cell_parameters(structure):
     """
@@ -1273,6 +1299,9 @@ if "mp_ntyp" not in st.session_state:
 if "mp_material_id" not in st.session_state:
     st.session_state.mp_material_id = ""
 
+if "mp_structure_representation" not in st.session_state:
+    st.session_state.mp_structure_representation = "As fetched from Materials Project"
+
 
 # -----------------------------
 # HERO SECTION
@@ -2130,6 +2159,22 @@ if use_mp_helper:
         help="Example: mp-34202",
     )
 
+    structure_representation = st.selectbox(
+        "Structure representation",
+        [
+            "As fetched from Materials Project",
+            "Conventional standard cell",
+        ],
+        index=0,
+        help=(
+            "Choose how the fetched structure should be written to Quantum ESPRESSO. "
+            "The conventional standard cell is generated using symmetry standardization "
+            "and may contain more atoms than the fetched structure."
+        ),
+    )
+
+    st.session_state.mp_structure_representation = structure_representation
+
     if st.button("Fetch structure from Materials Project"):
         if not mp_api_key.strip():
             st.error("Please enter your Materials Project API key.")
@@ -2137,10 +2182,19 @@ if use_mp_helper:
             st.error("Please enter a Materials Project material ID.")
         else:
             try:
-                structure = fetch_materials_project_structure(
+                fetched_structure = fetch_materials_project_structure(
                     api_key=mp_api_key,
                     material_id=mp_material_id,
                 )
+
+                structure = apply_structure_representation(
+                    fetched_structure,
+                    structure_representation,
+                )
+
+                cell_text = structure_to_qe_cell_parameters(structure)
+                positions_text = structure_to_qe_atomic_positions(structure)
+                elements = get_unique_elements_from_structure(structure)
 
                 cell_text = structure_to_qe_cell_parameters(structure)
                 positions_text = structure_to_qe_atomic_positions(structure)
@@ -2153,9 +2207,20 @@ if use_mp_helper:
                 st.session_state.mp_ntyp = len(elements)
 
                 st.success(
-                    f"Fetched structure for {mp_material_id}: "
+                    f"Fetched structure for {mp_material_id} "
+                    f"using '{structure_representation}': "
                     f"nat = {len(structure)}, ntyp = {len(elements)}, "
                     f"elements = {', '.join(elements)}"
+                )
+
+                st.info(
+                    "Generated from [Materials Project](https://next-gen.materialsproject.org/) "
+                    "structure data using "
+                    "[pymatgen](https://pymatgen.org/) structure tools. "
+                    "If `Conventional standard cell` is selected, the structure is generated using "
+                    "pymatgen's `SpacegroupAnalyzer.get_conventional_standard_structure()` method. "
+                    "Values may differ slightly from CIF exports or other software due to "
+                    "cell standardization, relaxation version, and rounding."
                 )
 
             except Exception as error:
@@ -2163,7 +2228,9 @@ if use_mp_helper:
 
     if st.session_state.mp_nat is not None:
         st.info(
-            f"Fetched structure summary: nat = {st.session_state.mp_nat}, "
+            f"Fetched structure summary: "
+            f"representation = {st.session_state.mp_structure_representation}, "
+            f"nat = {st.session_state.mp_nat}, "
             f"ntyp = {st.session_state.mp_ntyp}, "
             f"elements = {', '.join(st.session_state.mp_detected_elements)}"
         )
