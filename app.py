@@ -2107,7 +2107,7 @@ use_mp_helper = st.checkbox(
 if use_mp_helper:
     st.caption(
         "How to get your Materials Project API key:\n\n"
-        "1. Log in to [Materials Project](https://next-gen.materialsproject.org).\n"
+        "1. Log in to [Materials Project](https://next-gen.materialsproject.org) or If you are already logged in, go directly to the [Materials Project Dashboard](https://next-gen.materialsproject.org/dashboard).\n"
         "2. Click the profile/person icon at the top right.\n"
         "3. Open Dashboard.\n"
         "4. Find the API key option on the left side.\n"
