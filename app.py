@@ -3,6 +3,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 import requests
 
+from mp_api.client import MPRester
 from qe_generator import generate_qe_input
 
 ATOMIC_MASSES = {
@@ -112,6 +113,71 @@ def normalize_element_symbol(symbol):
 
     return symbol[0].upper() + symbol[1:].lower()
 
+def fetch_materials_project_structure(api_key, material_id):
+    """
+    Fetch final crystal structure from Materials Project using material ID.
+    Example material_id: mp-34202
+    """
+    material_id = material_id.strip()
+
+    if not material_id:
+        raise ValueError("Material ID is empty.")
+
+    with MPRester(api_key) as mpr:
+        structure = mpr.get_structure_by_material_id(material_id)
+
+    if structure is None:
+        raise ValueError(
+            f"No structure was returned for material ID '{material_id}'. "
+            "Please check that the material ID is correct and available in the Materials Project API."
+        )
+
+    return structure
+
+def structure_to_qe_cell_parameters(structure):
+    """
+    Convert pymatgen Structure lattice matrix to QE CELL_PARAMETERS angstrom.
+    """
+    lines = []
+
+    for vector in structure.lattice.matrix:
+        lines.append(
+            f"{vector[0]:.10f} {vector[1]:.10f} {vector[2]:.10f}"
+        )
+
+    return "\n".join(lines)
+
+
+def structure_to_qe_atomic_positions(structure):
+    """
+    Convert pymatgen Structure fractional coordinates to QE ATOMIC_POSITIONS crystal.
+    """
+    lines = []
+
+    for site in structure:
+        element = site.specie.symbol
+        x, y, z = site.frac_coords
+
+        lines.append(
+            f"{element:<4} {x:.10f} {y:.10f} {z:.10f}"
+        )
+
+    return "\n".join(lines)
+
+
+def get_unique_elements_from_structure(structure):
+    """
+    Return unique element symbols from a pymatgen Structure.
+    """
+    elements = []
+
+    for site in structure:
+        element = site.specie.symbol
+
+        if element not in elements:
+            elements.append(element)
+
+    return elements
 
 def parse_element_list(text):
     """
@@ -1185,6 +1251,32 @@ st.sidebar.info(
 #     """,
 #     unsafe_allow_html=True,
 # )
+# -----------------------------
+# MATERIALS PROJECT SESSION STATE
+# -----------------------------
+
+if "mp_cell_parameters" not in st.session_state:
+    st.session_state.mp_cell_parameters = ""
+
+if "mp_atomic_positions" not in st.session_state:
+    st.session_state.mp_atomic_positions = ""
+
+if "mp_detected_elements" not in st.session_state:
+    st.session_state.mp_detected_elements = []
+
+if "mp_nat" not in st.session_state:
+    st.session_state.mp_nat = None
+
+if "mp_ntyp" not in st.session_state:
+    st.session_state.mp_ntyp = None
+
+if "mp_material_id" not in st.session_state:
+    st.session_state.mp_material_id = ""
+
+
+# -----------------------------
+# HERO SECTION
+# -----------------------------
 
 components.html(
     """
@@ -1986,6 +2078,96 @@ st.caption("Example format: `Ba 137.327 Ba.upf`")
 
 st.divider()
 
+#------------------------------
+# Fetching the Data 
+#------------------------------
+
+st.markdown("### Materials Project structure helper")
+
+st.caption(
+    "Optional: fetch lattice vectors and fractional atomic positions using a Materials Project material ID."
+)
+
+st.markdown(
+    "[Open Materials Project](https://next-gen.materialsproject.org/) "
+    "to search for a material and copy its material ID, for example `mp-34202`."
+)
+
+st.info(
+    "Materials Project structures are imported as CELL_PARAMETERS angstrom "
+    "and ATOMIC_POSITIONS crystal. Use ibrav = 0 for these imported structures."
+)
+
+use_mp_helper = st.checkbox(
+    "Fetch structure from Materials Project",
+    value=False,
+    help="Use your own Materials Project API key and material ID to fetch CELL_PARAMETERS and ATOMIC_POSITIONS.",
+)
+
+if use_mp_helper:
+    st.caption(
+        "How to get your Materials Project API key:\n\n"
+        "1. Log in to [Materials Project](https://next-gen.materialsproject.org).\n"
+        "2. Click the profile/person icon at the top right.\n"
+        "3. Open Dashboard.\n"
+        "4. Find the API key option on the left side.\n"
+        "5. Copy the key and paste it below."
+    )
+
+    mp_api_key = st.text_input(
+        "Materials Project API key",
+        type="password",
+        help=(
+            "Create or log in to a Materials Project account, then copy your API key "
+            "from https://next-gen.materialsproject.org/api. "
+            "The key is used only to fetch the requested structure."
+        ),
+    )
+
+    mp_material_id = st.text_input(
+        "Materials Project material ID",
+        value="mp-34202",
+        help="Example: mp-34202",
+    )
+
+    if st.button("Fetch structure from Materials Project"):
+        if not mp_api_key.strip():
+            st.error("Please enter your Materials Project API key.")
+        elif not mp_material_id.strip():
+            st.error("Please enter a Materials Project material ID.")
+        else:
+            try:
+                structure = fetch_materials_project_structure(
+                    api_key=mp_api_key,
+                    material_id=mp_material_id,
+                )
+
+                cell_text = structure_to_qe_cell_parameters(structure)
+                positions_text = structure_to_qe_atomic_positions(structure)
+                elements = get_unique_elements_from_structure(structure)
+
+                st.session_state.mp_cell_parameters = cell_text
+                st.session_state.mp_atomic_positions = positions_text
+                st.session_state.mp_detected_elements = elements
+                st.session_state.mp_nat = len(structure)
+                st.session_state.mp_ntyp = len(elements)
+
+                st.success(
+                    f"Fetched structure for {mp_material_id}: "
+                    f"nat = {len(structure)}, ntyp = {len(elements)}, "
+                    f"elements = {', '.join(elements)}"
+                )
+
+            except Exception as error:
+                st.error(f"Could not fetch structure from Materials Project: {error}")
+
+    if st.session_state.mp_nat is not None:
+        st.info(
+            f"Fetched structure summary: nat = {st.session_state.mp_nat}, "
+            f"ntyp = {st.session_state.mp_ntyp}, "
+            f"elements = {', '.join(st.session_state.mp_detected_elements)}"
+        )
+
 # -----------------------------
 # CELL PARAMETERS
 # -----------------------------
@@ -2011,19 +2193,33 @@ if use_cell_parameters:
         help="Units/type for CELL_PARAMETERS.",
     )
 
+    default_cell_parameters = (
+        st.session_state.mp_cell_parameters
+        if st.session_state.mp_cell_parameters
+        else """4.00768164000000 0.00000000000000 0.00000000000000
+0.00000000000000 4.00768164000000 0.00000000000000
+0.00000000000000 0.00000000000000 4.00768164000000"""
+    )
+
+    cell_parameters_key = "cell_parameters_" + str(
+        abs(hash(default_cell_parameters))
+    )
+
     cell_parameters = st.text_area(
         "Enter cell parameters",
-        value="""4.00768164000000 0.00000000000000 0.00000000000000
-0.00000000000000 4.00768164000000 0.00000000000000
-0.00000000000000 0.00000000000000 4.00768164000000""",
+        value=default_cell_parameters,
         height=130,
         help="Three lattice vectors. Each row should contain x y z values.",
+        key=cell_parameters_key,
     )
 else:
     st.info("CELL_PARAMETERS will not be printed.")
+    cell_parameters_type = None
+    cell_parameters = ""
 
-    
 st.divider()
+
+
 # -----------------------------
 # ATOMIC POSITIONS
 # -----------------------------
@@ -2032,20 +2228,31 @@ st.header("6. ATOMIC_POSITIONS section")
 
 atomic_positions_type = st.selectbox(
     "ATOMIC_POSITIONS type",
-    ["angstrom", "crystal", "bohr", "alat", "crystal_sg"],
-    index=0,
+    ["alat", "bohr", "angstrom", "crystal", "crystal_sg"],
+    index=3,
     help="Coordinate type for ATOMIC_POSITIONS.",
 )
 
+default_atomic_positions = (
+    st.session_state.mp_atomic_positions
+    if st.session_state.mp_atomic_positions
+    else """Ba 0.000000 0.000000 0.000000
+Ti 0.500000 0.500000 0.500000
+O  0.500000 0.500000 0.000000
+O  0.500000 0.000000 0.500000
+O  0.000000 0.500000 0.500000"""
+)
+
+atomic_positions_key = "atomic_positions_" + str(
+    abs(hash(default_atomic_positions))
+)
+
 atomic_positions = st.text_area(
-    "Enter atomic positions in angstrom",
-    value="""Ba 2.0038408200 2.0038408200 2.0038408200
-Ti 0.0000000000 0.0000000000 0.0000000000
-O 2.0038408200 0.0000000000 0.0000000000
-O 0.0000000000 2.0038408200 0.0000000000
-O 0.0000000000 0.0000000000 2.0038408200""",
-    height=170,
-    help="Format: Element x y z",
+    "Enter atomic positions",
+    value=default_atomic_positions,
+    height=220,
+    help="Each row should contain: Element x y z. Materials Project data uses fractional coordinates, so choose crystal.",
+    key=atomic_positions_key,
 )
 
 st.caption(
