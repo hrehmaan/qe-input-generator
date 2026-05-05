@@ -2,6 +2,8 @@
 import streamlit as st
 import streamlit.components.v1 as components
 import requests
+import re
+import html
 
 from mp_api.client import MPRester
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
@@ -269,6 +271,155 @@ def count_non_empty_lines(text):
     Count non-empty lines in a multiline text box.
     """
     return len([line for line in text.splitlines() if line.strip()])
+
+
+QE_INPUT_PW_DOC_URL = "https://www.quantum-espresso.org/Doc/INPUT_PW.html"
+
+
+@st.cache_data(ttl=3600)
+def fetch_qe_input_pw_documentation_text():
+    """
+    Fetch official Quantum ESPRESSO INPUT_PW documentation as plain text.
+
+    Cached for 1 hour so the app does not request the documentation repeatedly.
+    """
+    response = requests.get(QE_INPUT_PW_DOC_URL, timeout=10)
+    response.raise_for_status()
+
+    raw_html = response.text
+
+    # Remove scripts/styles
+    raw_html = re.sub(r"<script.*?</script>", " ", raw_html, flags=re.DOTALL | re.IGNORECASE)
+    raw_html = re.sub(r"<style.*?</style>", " ", raw_html, flags=re.DOTALL | re.IGNORECASE)
+
+    # Convert HTML tags to spaces
+    text = re.sub(r"<[^>]+>", " ", raw_html)
+
+    # Decode HTML entities
+    text = html.unescape(text)
+
+    # Normalize whitespace
+    text = re.sub(r"\s+", " ", text).strip()
+
+    return text
+
+
+def find_qe_doc_excerpt(keywords, window=900):
+    """
+    Find a focused official QE INPUT_PW excerpt for validation messages.
+    Prefer exact card sections like 'Card: CELL_PARAMETERS'.
+    """
+    try:
+        doc_text = fetch_qe_input_pw_documentation_text()
+    except Exception as error:
+        return (
+            "Could not fetch the official QE documentation right now. "
+            f"Reason: {type(error).__name__}: {error}"
+        )
+
+    # Clean common HTML/encoding artifacts
+    doc_text = doc_text.replace("Â", "")
+    doc_text = doc_text.replace("\xa0", " ")
+    doc_text = re.sub(r"\s+", " ", doc_text).strip()
+
+    joined_keywords = " ".join(keywords).lower()
+
+    section_patterns = []
+
+    if "cell_parameters" in joined_keywords or "cell parameters" in joined_keywords or "ibrav" in joined_keywords:
+        section_patterns = [
+            "Card: CELL_PARAMETERS",
+            "CELL_PARAMETERS { alat | bohr | angstrom }",
+        ]
+
+    elif "atomic_species" in joined_keywords or "atomic species" in joined_keywords:
+        section_patterns = [
+            "Card: ATOMIC_SPECIES",
+            "ATOMIC_SPECIES",
+        ]
+
+    elif "atomic_positions" in joined_keywords or "atomic positions" in joined_keywords:
+        section_patterns = [
+            "Card: ATOMIC_POSITIONS",
+            "ATOMIC_POSITIONS",
+        ]
+
+    elif "k_points" in joined_keywords or "k points" in joined_keywords or "k-points" in joined_keywords:
+        section_patterns = [
+            "Card: K_POINTS",
+            "K_POINTS",
+        ]
+
+    else:
+        section_patterns = keywords
+
+    lower_doc = doc_text.lower()
+    start_index = -1
+
+    for pattern in section_patterns:
+        index = lower_doc.find(pattern.lower())
+        if index != -1:
+            start_index = index
+            break
+
+    if start_index == -1:
+        return (
+            "Could not find a focused excerpt for this warning. "
+            "Please open the official INPUT_PW documentation link below."
+        )
+
+    end_index = min(start_index + window, len(doc_text))
+    excerpt = doc_text[start_index:end_index].strip()
+
+    return excerpt
+
+
+def guess_qe_doc_keywords_from_messages(messages):
+    """
+    Guess useful QE documentation keywords from validation warning/error text.
+    """
+    joined = " ".join(messages).lower()
+
+    keywords = []
+
+    if "ibrav" in joined or "cell_parameters" in joined or "cell parameters" in joined:
+        keywords.extend(["CELL_PARAMETERS", "ibrav", "must be present"])
+
+    if (
+        "not listed in atomic_species" in joined
+        or "not listed in atomic species" in joined
+        or "atomic_species contains" in joined
+        or "atomic species contains" in joined
+        or "ntyp" in joined
+    ):
+        keywords.extend(["ATOMIC_SPECIES", "ATOMIC_POSITIONS"])
+
+    elif "atomic_positions" in joined or "atomic positions" in joined or "nat" in joined:
+        keywords.extend(["ATOMIC_POSITIONS", "ATOMIC_SPECIES"])
+
+    if "k_points" in joined or "k points" in joined or "k-points" in joined:
+        keywords.extend(["K_POINTS", "automatic"])
+
+    if "degauss" in joined or "smearing" in joined or "occupations" in joined:
+        keywords.extend(["degauss", "smearing", "occupations"])
+
+    if "nat" in joined:
+        keywords.extend(["nat", "ATOMIC_POSITIONS"])
+
+    if "ntyp" in joined:
+        keywords.extend(["ntyp", "ATOMIC_SPECIES"])
+
+    if not keywords:
+        keywords = ["Input data format"]
+
+    # Remove duplicates while preserving order
+    unique_keywords = []
+    for keyword in keywords:
+        if keyword not in unique_keywords:
+            unique_keywords.append(keyword)
+
+    return unique_keywords
+
 
 
 def validate_atomic_species(atomic_species_text, expected_ntyp):
@@ -997,23 +1148,36 @@ def validate_lattice_parameters(system_params, ibrav, use_cell_parameters):
     allowed_abc_by_ibrav = required_abc_by_ibrav.copy()
 
     if ibrav == 0:
-        if used_abc:
-            warnings.append(
-                "For ibrav = 0, A/B/C values are optional only for setting alat. "
-                "The actual lattice vectors must come from CELL_PARAMETERS."
-            )
-
-        if used_celldm:
-            warnings.append(
-                "For ibrav = 0, only celldm(1) is meaningful if used. "
-                "The actual lattice vectors must come from CELL_PARAMETERS."
-            )
-
         if not use_cell_parameters:
             errors.append("CELL_PARAMETERS is required when ibrav = 0.")
+            return errors, warnings
+
+        if used_abc:
+            if cell_parameters_type in ["angstrom", "bohr"]:
+                errors.append(
+                    "For ibrav = 0 with CELL_PARAMETERS angstrom/bohr, do not print A/B/C. "
+                    "The full lattice is already defined by CELL_PARAMETERS."
+                )
+            elif cell_parameters_type == "alat":
+                warnings.append(
+                    "For ibrav = 0 with CELL_PARAMETERS alat, A may be used as alat. "
+                    "Make sure this is intentional."
+                )
+
+        if used_celldm:
+            if cell_parameters_type in ["angstrom", "bohr"]:
+                errors.append(
+                    "For ibrav = 0 with CELL_PARAMETERS angstrom/bohr, do not print celldm values. "
+                    "The full lattice is already defined by CELL_PARAMETERS."
+                )
+            elif cell_parameters_type == "alat":
+                warnings.append(
+                    "For ibrav = 0 with CELL_PARAMETERS alat, celldm(1) may be used as alat. "
+                    "Make sure this is intentional."
+                )
 
         return errors, warnings
-
+    
     if ibrav not in required_abc_by_ibrav:
         errors.append(
             f"Unsupported or invalid ibrav value: {ibrav}. "
@@ -2933,11 +3097,35 @@ st.markdown(
     """
 )
 
+validation_errors = list(dict.fromkeys(validation_errors))
+validation_warnings = list(dict.fromkeys(validation_warnings))
+
 if validation_errors:
     st.error("Some required input rules are not satisfied. Please fix the following error(s):")
 
     for error in validation_errors:
         st.write(f"❌ {error}")
+
+    with st.expander("Show related official Quantum ESPRESSO documentation"):
+        error_keywords = guess_qe_doc_keywords_from_messages(validation_errors)
+        error_excerpt = find_qe_doc_excerpt(error_keywords)
+
+        st.markdown("**Related INPUT_PW excerpt:**")
+        st.text_area(
+            "Official documentation excerpt",
+            value=error_excerpt,
+            height=220,
+            key="qe_error_doc_excerpt",
+        )
+
+        st.markdown(
+            """
+            Official links:
+
+            - [Quantum ESPRESSO INPUT_PW documentation](https://www.quantum-espresso.org/Doc/INPUT_PW.html)
+            - [Quantum ESPRESSO source repository](https://gitlab.com/QEF/q-e)
+            """
+        )
 else:
     st.markdown(
         """
@@ -2954,6 +3142,28 @@ if validation_warnings:
 
     for warning in validation_warnings:
         st.write(f"⚠️ {warning}")
+
+    with st.expander("Show related official Quantum ESPRESSO documentation"):
+        warning_keywords = guess_qe_doc_keywords_from_messages(validation_warnings)
+        warning_excerpt = find_qe_doc_excerpt(warning_keywords)
+
+        st.markdown("**Related INPUT_PW excerpt:**")
+        st.text_area(
+            "Official documentation excerpt",
+            value=warning_excerpt,
+            height=220,
+            key="qe_warning_doc_excerpt",
+        )
+
+        st.markdown(
+            """
+            Official links:
+
+            - [Quantum ESPRESSO INPUT_PW documentation](https://www.quantum-espresso.org/Doc/INPUT_PW.html)
+            - [Quantum ESPRESSO source repository](https://gitlab.com/QEF/q-e)
+            """
+        )
+
 
 st.divider()
 
