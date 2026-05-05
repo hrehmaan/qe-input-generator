@@ -34,20 +34,17 @@ No repository download is required.
 - Generates Quantum ESPRESSO `pw.x` input files
 - Supports editable final preview before download
 - Supports common `pw.x` namelists and cards
-- Optional advanced settings through checkboxes
-- Structural validation before download
-- Validation checklist showing passed checks
-- ATOMIC_SPECIES helper with built-in atomic masses
-- Suggested pseudopotential filenames
-- Custom pseudopotential filename option
-- Temporary pseudopotential upload for online checks
-- Automatic deletion of uploaded files after 10 minutes
-- Manual delete button for uploaded backend files
-- Online tiny Quantum ESPRESSO smoke check for small inputs
 - Materials Project structure fetching by material ID
 - Primitive and conventional standard cell generation using pymatgen
 - Automatic `CELL_PARAMETERS` and `ATOMIC_POSITIONS` generation
 - Automatic `nat`, `ntyp`, and element detection from fetched structures
+- Optional advanced settings through checkboxes
+- Structural validation before download
+- Validation checklist
+- ATOMIC_SPECIES helper with built-in atomic masses
+- Suggested & Custom pseudopotential filenames
+- Temporary pseudopotential upload for online smoke checks
+- Online tiny Quantum ESPRESSO smoke check for small inputs
 
 ---
 
@@ -291,26 +288,6 @@ To install and run Quantum ESPRESSO using Docker, see:
 
 ---
 
-## Project structure
-
-```text
-qe-input-generator/
-├── app.py
-├── qe_generator.py
-├── requirements.txt
-├── README.md
-├── CONTRIBUTING.md
-├── LICENSE
-├── qe-runner-backend/
-│   ├── main.py
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   └── README.md
-├── examples/
-└── screenshots/
-```
-
----
 
 ## Contributing
 
