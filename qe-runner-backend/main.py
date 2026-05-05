@@ -537,7 +537,7 @@ async def qe_check(
         return {
             "status": "missing_pseudopotentials",
             "job_id": job_id,
-            "message": "Some pseudopotential files required by ATOMIC_SPECIES were not uploaded.",
+            "message": "Some pseudopotential files listed in ATOMIC_SPECIES were not uploaded.",
             "input_file": "input.pwi",
             "required_pseudopotentials": required_pseudos,
             "uploaded_pseudopotentials": saved_files,

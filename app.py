@@ -3451,12 +3451,12 @@ if st.session_state.qe_backend_response:
     missing_names = response.get("missing_pseudopotentials", [])
 
     if required_names:
-        st.write("**Required pseudopotential files from ATOMIC_SPECIES:**")
+        st.write("**Pseudopotential files listed in ATOMIC_SPECIES:**")
         for filename in required_names:
             st.write(f"📌 {filename}")
 
     if missing_names:
-        st.error("Some required pseudopotential files are missing:")
+        st.error("Missing uploaded pseudopotential files:")
         for filename in missing_names:
             st.write(f"❌ {filename}")
     else:
