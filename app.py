@@ -1289,6 +1289,165 @@ st.markdown(
         background: rgba(15, 23, 42, 0.06);
         color: #0f172a;
     }
+    /* -----------------------------
+    Dark-mode safety override
+    ----------------------------- */
+
+    .stApp {
+        background: #f8fafc !important;
+        color: #0f172a !important;
+    }
+
+    .qe-section-card,
+    .qe-helper-box,
+    .qe-result-box,
+    .qe-warning-box {
+        color: #0f172a !important;
+    }
+
+    .qe-section-card {
+        background: #ffffff !important;
+    }
+
+    .qe-helper-box {
+        background: #eff6ff !important;
+    }
+
+    .qe-result-box {
+        background: #ecfdf5 !important;
+    }
+
+    .qe-section-card h3,
+    .qe-helper-title {
+        color: #0f172a !important;
+    }
+
+    .qe-section-card p,
+    .qe-helper-subtitle {
+        color: #334155 !important;
+    }
+
+    div[data-testid="stMarkdownContainer"],
+    div[data-testid="stCaptionContainer"],
+    div[data-testid="stWidgetLabel"] {
+        color: #0f172a !important;
+    }
+
+    input,
+    textarea {
+        background-color: #ffffff !important;
+        color: #0f172a !important;
+        border-color: #cbd5e1 !important;
+    }
+
+    textarea::placeholder,
+    input::placeholder {
+        color: #64748b !important;
+    }
+
+    div[data-baseweb="select"] > div {
+        background-color: #ffffff !important;
+        color: #0f172a !important;
+        border-color: #cbd5e1 !important;
+    }
+
+    pre,
+    code {
+        background: rgba(15, 23, 42, 0.06) !important;
+        color: #0f172a !important;
+    }
+
+    div[data-testid="stAlert"] {
+        color: #0f172a !important;
+    }
+
+    /* -----------------------------
+    Force readable light-style UI
+    ----------------------------- */
+
+    .stApp {
+        background: #f8fafc !important;
+        color: #0f172a !important;
+    }
+
+    /* Main page text */
+    html, body, [class*="css"] {
+        color: #0f172a !important;
+    }
+
+    /* Section/helper/result cards */
+    .qe-section-card {
+        background: #ffffff !important;
+        color: #0f172a !important;
+        border: 1px solid #e2e8f0 !important;
+    }
+
+    .qe-helper-box {
+        background: #eff6ff !important;
+        color: #0f172a !important;
+        border: 2px solid #38bdf8 !important;
+    }
+
+    .qe-result-box {
+        background: #ecfdf5 !important;
+        color: #064e3b !important;
+        border: 1px solid rgba(34, 197, 94, 0.35) !important;
+    }
+
+    .qe-warning-box {
+        background: #fffbeb !important;
+        color: #78350f !important;
+        border: 1px solid rgba(245, 158, 11, 0.35) !important;
+    }
+
+    /* Titles and descriptions */
+    .qe-section-card h3,
+    .qe-helper-title {
+        color: #0f172a !important;
+    }
+
+    .qe-section-card p,
+    .qe-helper-subtitle {
+        color: #334155 !important;
+    }
+
+    /* Inputs, text areas, select boxes */
+    input,
+    textarea {
+        background-color: #ffffff !important;
+        color: #0f172a !important;
+        border-color: #cbd5e1 !important;
+    }
+
+    textarea::placeholder,
+    input::placeholder {
+        color: #64748b !important;
+    }
+
+    div[data-baseweb="select"] > div {
+        background-color: #ffffff !important;
+        color: #0f172a !important;
+        border-color: #cbd5e1 !important;
+    }
+
+    /* Streamlit labels/captions */
+    div[data-testid="stWidgetLabel"],
+    div[data-testid="stCaptionContainer"],
+    div[data-testid="stMarkdownContainer"] {
+        color: #0f172a !important;
+    }
+
+    /* Code/text preview */
+    pre,
+    code {
+        background: rgba(15, 23, 42, 0.06) !important;
+        color: #0f172a !important;
+    }
+
+    /* Alerts */
+    div[data-testid="stAlert"] {
+        color: #0f172a !important;
+    }
     </style>
     """,
     unsafe_allow_html=True,
