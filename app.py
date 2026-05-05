@@ -142,22 +142,25 @@ def apply_structure_representation(structure, representation):
 
     Options:
     - As fetched from Materials Project
+    - Primitive standard cell
     - Conventional standard cell
     """
     if representation == "As fetched from Materials Project":
         return structure
 
-    if representation == "Conventional standard cell":
-        analyzer = SpacegroupAnalyzer(
-            structure,
-            symprec=0.1,
-            angle_tolerance=5,
-        )
+    analyzer = SpacegroupAnalyzer(
+        structure,
+        symprec=0.1,
+        angle_tolerance=5,
+    )
 
+    if representation == "Primitive standard cell":
+        return analyzer.get_primitive_standard_structure()
+
+    if representation == "Conventional standard cell":
         return analyzer.get_conventional_standard_structure()
 
     return structure
-
 
 
 def structure_to_qe_cell_parameters(structure):
@@ -1555,6 +1558,7 @@ st.sidebar.markdown(
     **Official documentation**
     - [Quantum ESPRESSO Instructions](https://www.quantum-espresso.org/Doc/INPUT_PW.html)
     - [Source repository](https://gitlab.com/QEF/q-e)
+    - [pymatgen Python library(Primitive & Conventional cells)](https://pymatgen.org/)
     """
 )
 
@@ -2499,7 +2503,7 @@ st.markdown(
         <div class="qe-helper-subtitle">
             <ul style="margin: 8px 0 0 18px; padding: 0;">
                 <li>Fetches lattice vectors and atomic positions using a Materials Project ID.</li>
-                <li>Can use the structure as fetched or convert it to a conventional standard cell.</li>
+                <li>Can use the structure as fetched, primitive standard cell, or conventional standard cell.</li>
                 <li>Fills CELL_PARAMETERS, ATOMIC_POSITIONS, nat, ntyp, and detected elements.</li>
             </ul>
         </div>
@@ -2560,13 +2564,15 @@ if use_mp_helper:
         "Structure representation",
         [
             "As fetched from Materials Project",
+            "Primitive standard cell",
             "Conventional standard cell",
         ],
         index=0,
         help=(
             "Choose how the fetched structure should be written to Quantum ESPRESSO. "
+            "The primitive standard cell usually contains the smallest repeating unit. "
             "The conventional standard cell is generated using symmetry standardization "
-            "and may contain more atoms than the fetched structure."
+            "and may contain more atoms than the fetched or primitive structure."
         ),
     )
 
@@ -2633,13 +2639,13 @@ if use_mp_helper:
                 )
 
                 st.info(
-                    "Generated from [Materials Project](https://next-gen.materialsproject.org/) "
-                    "structure data using "
-                    "[pymatgen](https://pymatgen.org/) structure tools. "
-                    "If `Conventional standard cell` is selected, the structure is generated using "
-                    "pymatgen's `SpacegroupAnalyzer.get_conventional_standard_structure()` method. "
+                    "Structure data is fetched from [Materials Project](https://next-gen.materialsproject.org/) "
+                    "and processed using the [pymatgen](https://pymatgen.org/) Python library. "
+                    "If `Primitive standard cell` or `Conventional standard cell` is selected, "
+                    "pymatgen converts the fetched structure before the app generates "
+                    "`CELL_PARAMETERS`, `ATOMIC_POSITIONS`, `nat`, and `ntyp`. "
                     "Values may differ slightly from CIF exports or other software due to "
-                    "cell standardization, relaxation version, and rounding."
+                    "cell standardization, relaxation version, symmetry tolerance, and rounding."
                 )
 
             except Exception as error:
