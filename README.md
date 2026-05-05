@@ -44,8 +44,21 @@ No repository download is required.
 - Automatic deletion of uploaded files after 10 minutes
 - Manual delete button for uploaded backend files
 - Online tiny Quantum ESPRESSO smoke check for small inputs
+- Materials Project structure fetching by material ID
+- Primitive and conventional standard cell generation using pymatgen
+- Automatic `CELL_PARAMETERS` and `ATOMIC_POSITIONS` generation
+- Automatic `nat`, `ntyp`, and element detection from fetched structures
 
 ---
+
+## Materials Project structure helper
+
+The app includes an optional Materials Project structure helper.
+
+Users can enter their own Materials Project API key and a material ID, such as:
+
+```text
+mp-34202
 
 ## Supported input sections
 
@@ -273,6 +286,8 @@ To install and run Quantum ESPRESSO using Docker, see:
 - [Quantum ESPRESSO source repository](https://gitlab.com/QEF/q-e)
 - [Quantum ESPRESSO pseudopotentials](https://www.quantum-espresso.org/pseudopotentials/)
 - [Legacy pseudopotential tables](https://pseudopotentials.quantum-espresso.org/legacy_tables)
+- [Materials Project](https://next-gen.materialsproject.org/)
+- [pymatgen Python library](https://pymatgen.org/)
 
 ---
 
