@@ -1723,6 +1723,10 @@ st.sidebar.markdown(
     - [Quantum ESPRESSO Instructions](https://www.quantum-espresso.org/Doc/INPUT_PW.html)
     - [Source repository](https://gitlab.com/QEF/q-e)
     - [pymatgen Python library(Primitive & Conventional cells)](https://pymatgen.org/)
+
+    **Additional Resources**
+    - [Additional Tools for Materials Science](https://janosh.dev/)
+    - [AI-Driven Future for Materials Science](https://www.materialyze.ai/)
     """
 )
 

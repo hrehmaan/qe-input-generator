@@ -285,6 +285,8 @@ To install and run Quantum ESPRESSO using Docker, see:
 - [Legacy pseudopotential tables](https://pseudopotentials.quantum-espresso.org/legacy_tables)
 - [Materials Project](https://next-gen.materialsproject.org/)
 - [pymatgen Python library](https://pymatgen.org/)
+- [Additional Tools for Materials Science](https://janosh.dev/)
+- [AI-Driven Future for Materials Science](https://www.materialyze.ai/)
 
 ---
 
