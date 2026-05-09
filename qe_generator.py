@@ -81,9 +81,9 @@ def generate_qe_input(
 
     sections.append(f"ATOMIC_SPECIES\n{atomic_species.strip()}")
 
-    if cell_parameters and cell_parameters.strip():
+    if cell_parameters and cell_parameters.rstrip():
         sections.append(
-            f"CELL_PARAMETERS {cell_parameters_type}\n{cell_parameters.strip()}"
+            f"CELL_PARAMETERS {cell_parameters_type}\n{cell_parameters.rstrip()}"
         )
 
     sections.append(

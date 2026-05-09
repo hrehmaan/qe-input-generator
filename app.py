@@ -117,6 +117,268 @@ def normalize_element_symbol(symbol):
 
     return symbol[0].upper() + symbol[1:].lower()
 
+def normalize_qe_card_type(raw_type):
+    """
+    Normalize QE card type strings like:
+    '(angstrom)' -> 'angstrom'
+    '{crystal}'  -> 'crystal'
+    'angstrom'   -> 'angstrom'
+    """
+    if not raw_type:
+        return ""
+
+    cleaned = raw_type.strip()
+    cleaned = cleaned.replace("(", "").replace(")", "")
+    cleaned = cleaned.replace("{", "").replace("}", "")
+    cleaned = cleaned.strip().lower()
+
+    return cleaned
+
+
+def is_float_triplet(line):
+    """
+    Return True if a line has at least 3 numeric values.
+    Used for CELL_PARAMETERS vector lines.
+    """
+    parts = line.split()
+
+    if len(parts) < 3:
+        return False
+
+    try:
+        float(parts[0])
+        float(parts[1])
+        float(parts[2])
+        return True
+    except ValueError:
+        return False
+
+
+def is_atomic_position_line(line):
+    """
+    Return True if a line looks like:
+    Bi 0.333 0.666 0.123
+    """
+    parts = line.split()
+
+    if len(parts) < 4:
+        return False
+
+    element = parts[0]
+
+    if not element[0].isalpha():
+        return False
+
+    try:
+        float(parts[1])
+        float(parts[2])
+        float(parts[3])
+        return True
+    except ValueError:
+        return False
+
+
+def extract_card_type_from_header(header_line, card_name):
+    """
+    Extract card option from lines like:
+    CELL_PARAMETERS (angstrom)
+    CELL_PARAMETERS angstrom
+    ATOMIC_POSITIONS (crystal)
+    ATOMIC_POSITIONS {crystal}
+    """
+    stripped = header_line.strip()
+
+    remainder = stripped[len(card_name):].strip()
+
+    if not remainder:
+        return ""
+
+    first_part = remainder.split()[0]
+
+    return normalize_qe_card_type(first_part)
+
+
+def get_unique_elements_from_positions_text(atomic_positions_text):
+    """
+    Extract unique element symbols from ATOMIC_POSITIONS text.
+    """
+    elements = []
+
+    for line in atomic_positions_text.splitlines():
+        clean_line = line.strip()
+
+        if not clean_line:
+            continue
+
+        parts = clean_line.split()
+
+        if len(parts) < 4:
+            continue
+
+        element = parts[0]
+
+        if element not in elements:
+            elements.append(element)
+
+    return elements
+
+
+def extract_last_qe_structure_from_output(output_text):
+    """
+    Extract the last complete CELL_PARAMETERS and ATOMIC_POSITIONS blocks
+    from a Quantum ESPRESSO pw.x output file.
+
+    This is useful for nscf inputs after a previous relax/vc-relax run.
+    """
+    lines = output_text.splitlines()
+
+    cell_blocks = []
+    position_blocks = []
+
+    i = 0
+
+    while i < len(lines):
+        stripped = lines[i].strip()
+
+        upper = stripped.upper()
+
+        if upper.startswith("CELL_PARAMETERS"):
+            cell_type = extract_card_type_from_header(stripped, "CELL_PARAMETERS")
+
+            vector_lines = []
+            j = i + 1
+
+            while j < len(lines) and len(vector_lines) < 3:
+                candidate = lines[j].strip()
+
+                # if is_float_triplet(candidate):
+                #     parts = candidate.split()
+                #     vector_lines.append(f"{parts[0]} {parts[1]} {parts[2]}")
+
+                if is_float_triplet(candidate):
+                    parts = candidate.split()
+
+                    x = keep_qe_number_string(parts[0])
+                    y = keep_qe_number_string(parts[1])
+                    z = keep_qe_number_string(parts[2])
+
+                    vector_lines.append(f"{x:>16} {y:>16} {z:>16}")
+
+                j += 1
+
+            if len(vector_lines) == 3:
+                cell_blocks.append(
+                    {
+                        "type": cell_type if cell_type else "angstrom",
+                        "text": "\n".join(vector_lines),
+                        "line_index": i,
+                    }
+                )
+
+            i = j
+            continue
+
+        if upper.startswith("ATOMIC_POSITIONS"):
+            positions_type = extract_card_type_from_header(stripped, "ATOMIC_POSITIONS")
+
+            atom_lines = []
+            j = i + 1
+
+            while j < len(lines):
+                candidate = lines[j].strip()
+
+                if not candidate:
+                    if atom_lines:
+                        break
+                    j += 1
+                    continue
+
+                if is_atomic_position_line(candidate):
+                    parts = candidate.split()
+                    element = parts[0]
+                    x = keep_qe_number_string(parts[1])
+                    y = keep_qe_number_string(parts[2])
+                    z = keep_qe_number_string(parts[3])
+
+                    atom_lines.append(f"{element:<4} {x:>16} {y:>16} {z:>16}")
+
+                    j += 1
+                    continue
+
+                if atom_lines:
+                    break
+
+                j += 1
+
+            if atom_lines:
+                position_blocks.append(
+                    {
+                        "type": positions_type if positions_type else "crystal",
+                        "text": "\n".join(atom_lines),
+                        "line_index": i,
+                    }
+                )
+
+            i = j
+            continue
+
+        i += 1
+
+    if not cell_blocks:
+        raise ValueError(
+            "No CELL_PARAMETERS block was found in the uploaded QE output file."
+        )
+
+    if not position_blocks:
+        raise ValueError(
+            "No ATOMIC_POSITIONS block was found in the uploaded QE output file."
+        )
+
+    last_cell = cell_blocks[-1]
+
+    # Prefer the last ATOMIC_POSITIONS block after the last CELL_PARAMETERS block.
+    positions_after_last_cell = [
+        block for block in position_blocks if block["line_index"] > last_cell["line_index"]
+    ]
+
+    if positions_after_last_cell:
+        last_positions = positions_after_last_cell[-1]
+    else:
+        last_positions = position_blocks[-1]
+
+    elements = get_unique_elements_from_positions_text(last_positions["text"])
+
+    return {
+        "cell_parameters_type": last_cell["type"],
+        "cell_parameters": last_cell["text"],
+        "atomic_positions_type": last_positions["type"],
+        "atomic_positions": last_positions["text"],
+        "nat": len(last_positions["text"].splitlines()),
+        "ntyp": len(elements),
+        "elements": elements,
+    }
+
+def format_qe_float(value, decimals=10):
+    """
+    Format QE numeric values cleanly.
+
+    Converts tiny values and negative zero like -0.0 to 0.0000000000.
+    """
+    number = float(value)
+
+    if abs(number) < 10 ** (-(decimals - 1)):
+        number = 0.0
+
+    return f"{number:.{decimals}f}"
+
+def keep_qe_number_string(value):
+    """
+    Keep the QE output number exactly as text.
+    No rounding, no sign change, no decimal change.
+    """
+    return str(value).strip()
+
+
 def fetch_materials_project_structure(api_key, material_id):
     """
     Fetch final crystal structure from Materials Project using material ID.
@@ -1781,6 +2043,20 @@ if "mp_structure_representation" not in st.session_state:
 
 
 # -----------------------------
+# QE OUTPUT STRUCTURE IMPORT SESSION STATE
+# -----------------------------
+
+if "qe_output_import_summary" not in st.session_state:
+    st.session_state.qe_output_import_summary = None
+
+if "qe_output_cell_parameters_type" not in st.session_state:
+    st.session_state.qe_output_cell_parameters_type = ""
+
+if "qe_output_atomic_positions_type" not in st.session_state:
+    st.session_state.qe_output_atomic_positions_type = ""
+
+
+# -----------------------------
 # HERO SECTION
 # -----------------------------
 
@@ -2578,6 +2854,8 @@ st.markdown(
 #     unsafe_allow_html=True,
 # )
 
+
+
 st.markdown(
     """
     <div class="qe-helper-box">
@@ -2687,170 +2965,266 @@ st.divider()
 # Fetching the Data 
 #------------------------------
 
-st.markdown(
-    """
-    <div class="qe-helper-box">
-        <div class="qe-helper-badge">Optional structure import</div>
-        <div class="qe-helper-title">🌐 Materials Project structure helper</div>
-        <div class="qe-helper-subtitle">
-            <ul style="margin: 8px 0 0 18px; padding: 0;">
-                <li>Fetches lattice vectors and atomic positions using a Materials Project ID.</li>
-                <li>Can use the structure as fetched, primitive standard cell, or conventional standard cell.</li>
-                <li>Fills CELL_PARAMETERS, ATOMIC_POSITIONS, nat, ntyp, and detected elements.</li>
-            </ul>
+
+# -----------------------------
+# NSCF STRUCTURE IMPORT HELPER
+# -----------------------------
+
+if calculation == "nscf":
+    st.markdown(
+        """
+        <div class="qe-helper-box">
+            <div class="qe-helper-badge">Optional nscf helper</div>
+            <div class="qe-helper-title">📤 Import final structure from previous QE output</div>
+            <div class="qe-helper-subtitle">
+                <ul style="margin: 8px 0 0 18px; padding: 0;">
+                    <li>Upload a previous <code>pw.x</code> output file from <code>relax</code> or <code>vc-relax</code>.</li>
+                    <li>The app extracts the last <code>CELL_PARAMETERS</code> block.</li>
+                    <li>The app extracts the last <code>ATOMIC_POSITIONS</code> block.</li>
+                    <li>The extracted structure is used for the current <code>nscf</code> input.</li>
+                </ul>
+            </div>
         </div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+        """,
+        unsafe_allow_html=True,
+    )
 
-
-st.caption(
-    "Optional: fetch lattice vectors and fractional atomic positions using a Materials Project material ID."
-)
-
-st.markdown(
-    "[Open Materials Project](https://next-gen.materialsproject.org/) "
-    "to search for a material and copy its material ID, for example `mp-34202`."
-)
-
-
-
-use_mp_helper = st.checkbox(
-    "🌐 Enable Materials Project structure fetcher",
-    value=False,
-    help=(
-        "Optional: fetch lattice vectors and fractional atomic positions using a Materials Project material ID. "
-        "Fetched structures are written as CELL_PARAMETERS angstrom and ATOMIC_POSITIONS crystal. "
-        "Use ibrav = 0 for imported structures."
-    ),
-)
-
-if use_mp_helper:
     st.caption(
-        "How to get your Materials Project API key:\n\n"
-        "1. Log in to [Materials Project](https://next-gen.materialsproject.org) or If you are already logged in, go directly to the [Materials Project Dashboard](https://next-gen.materialsproject.org/dashboard).\n"
-        "2. Click the profile/person icon at the top right.\n"
-        "3. Open Dashboard.\n"
-        "4. Find the API key option on the left side.\n"
-        "5. Copy the key and paste it below."
+        "The uploaded output file is read temporarily by the app and is not saved permanently."
     )
 
-    mp_api_key = st.text_input(
-        "Materials Project API key",
-        type="password",
+    previous_qe_output_file = st.file_uploader(
+        "Upload previous QE output file",
+        type=["out", "txt", "log"],
         help=(
-            "Create or log in to a Materials Project account, then copy your API key "
-            "from https://next-gen.materialsproject.org/api. "
-            "The key is used only to fetch the requested structure."
+            "Upload the output file from a previous relax/vc-relax/scf run. "
+            "The app will extract the last CELL_PARAMETERS and ATOMIC_POSITIONS blocks."
         ),
+        key="previous_qe_output_file_uploader",
     )
 
-    mp_material_id = st.text_input(
-        "Materials Project material ID",
-        value="mp-34202",
-        help="Example: mp-34202",
-    )
+    if previous_qe_output_file is not None:
+        try:
+            output_text = previous_qe_output_file.read().decode(
+                "utf-8",
+                errors="replace",
+            )
 
-    structure_representation = st.selectbox(
-        "Structure representation",
-        [
-            "As fetched from Materials Project",
-            "Primitive standard cell",
-            "Conventional standard cell",
-        ],
-        index=0,
-        help=(
-            "Choose how the fetched structure should be written to Quantum ESPRESSO. "
-            "The primitive standard cell usually contains the smallest repeating unit. "
-            "The conventional standard cell is generated using symmetry standardization "
-            "and may contain more atoms than the fetched or primitive structure."
-        ),
-    )
+            imported_structure = extract_last_qe_structure_from_output(output_text)
 
-    st.session_state.mp_structure_representation = structure_representation
+            st.session_state.mp_cell_parameters = imported_structure["cell_parameters"]
+            st.session_state.mp_atomic_positions = imported_structure["atomic_positions"]
+            st.session_state.mp_nat = imported_structure["nat"]
+            st.session_state.mp_ntyp = imported_structure["ntyp"]
+            st.session_state.mp_detected_elements = imported_structure["elements"]
 
-    fetch_mp_structure = st.button(
-        "🌐 Fetch structure now",
-        type="primary",
-        use_container_width=True,
-    )
+            st.session_state.qe_output_cell_parameters_type = imported_structure[
+                "cell_parameters_type"
+            ]
+            st.session_state.qe_output_atomic_positions_type = imported_structure[
+                "atomic_positions_type"
+            ]
+            st.session_state.qe_output_import_summary = imported_structure
 
-    st.caption("This will fill CELL_PARAMETERS, ATOMIC_POSITIONS, nat, ntyp, and detected elements.")
+            st.success(
+                "Extracted the last CELL_PARAMETERS and ATOMIC_POSITIONS blocks "
+                "from the uploaded QE output."
+            )
 
-    if fetch_mp_structure:
-        if not mp_api_key.strip():
-            st.error("Please enter your Materials Project API key.")
-        elif not mp_material_id.strip():
-            st.error("Please enter a Materials Project material ID.")
-        else:
-            try:
-                fetched_structure = fetch_materials_project_structure(
-                    api_key=mp_api_key,
-                    material_id=mp_material_id,
-                )
+            st.markdown(
+                f"""
+                <div class="qe-result-box">
+                    <strong>✅ Imported final structure summary</strong><br><br>
+                    CELL_PARAMETERS type: <code>{imported_structure["cell_parameters_type"]}</code><br>
+                    ATOMIC_POSITIONS type: <code>{imported_structure["atomic_positions_type"]}</code><br>
+                    nat: <code>{imported_structure["nat"]}</code><br>
+                    ntyp: <code>{imported_structure["ntyp"]}</code><br>
+                    Elements: <code>{", ".join(imported_structure["elements"])}</code>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
-                structure = apply_structure_representation(
-                    fetched_structure,
-                    structure_representation,
-                )
-
-                cell_text = structure_to_qe_cell_parameters(structure)
-                positions_text = structure_to_qe_atomic_positions(structure)
-                elements = get_unique_elements_from_structure(structure)
-
-                cell_text = structure_to_qe_cell_parameters(structure)
-                positions_text = structure_to_qe_atomic_positions(structure)
-                elements = get_unique_elements_from_structure(structure)
-
-                st.session_state.mp_cell_parameters = cell_text
-                st.session_state.mp_atomic_positions = positions_text
-                st.session_state.mp_detected_elements = elements
-                st.session_state.mp_nat = len(structure)
-                st.session_state.mp_ntyp = len(elements)
-
-                st.success(
-                    f"Fetched structure for {mp_material_id} "
-                    f"using '{structure_representation}': "
-                    f"nat = {len(structure)}, ntyp = {len(elements)}, "
-                    f"elements = {', '.join(elements)}"
-                )
-
+            with st.expander("Recommended settings for imported structure"):
                 st.markdown(
-                    f"""
-                    <div class="qe-result-box">
-                        <strong>✅ Fetched structure summary</strong><br><br>
-                        Material ID: <code>{mp_material_id}</code><br>
-                        Representation: <code>{structure_representation}</code><br>
-                        nat: <code>{len(structure)}</code><br>
-                        ntyp: <code>{len(elements)}</code><br>
-                        Elements: <code>{", ".join(elements)}</code>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
+                    """
+                    - Use `ibrav = 0`
+                    - Enable `CELL_PARAMETERS`
+                    - Use the detected `ATOMIC_POSITIONS` type
+                    - Make sure `ATOMIC_SPECIES` contains all detected elements
+                    """
                 )
 
-                st.info(
-                    "Structure data is fetched from [Materials Project](https://next-gen.materialsproject.org/) "
-                    "and processed using the [pymatgen](https://pymatgen.org/) Python library. "
-                    "If `Primitive standard cell` or `Conventional standard cell` is selected, "
-                    "pymatgen converts the fetched structure before the app generates "
-                    "`CELL_PARAMETERS`, `ATOMIC_POSITIONS`, `nat`, and `ntyp`. "
-                    "Values may differ slightly from CIF exports or other software due to "
-                    "cell standardization, relaxation version, symmetry tolerance, and rounding."
-                )
+        except Exception as error:
+            st.error(f"Could not extract final structure from uploaded QE output: {error}")
 
-            except Exception as error:
-                st.error(f"Could not fetch structure from Materials Project: {error}")
+else:
 
-    if st.session_state.mp_nat is not None:
-        st.info(
-            f"Fetched structure summary: "
-            f"representation = {st.session_state.mp_structure_representation}, "
-            f"nat = {st.session_state.mp_nat}, "
-            f"ntyp = {st.session_state.mp_ntyp}, "
-            f"elements = {', '.join(st.session_state.mp_detected_elements)}"
+
+    st.markdown(
+        """
+        <div class="qe-helper-box">
+            <div class="qe-helper-badge">Optional structure import</div>
+            <div class="qe-helper-title">🌐 Materials Project structure helper</div>
+            <div class="qe-helper-subtitle">
+                <ul style="margin: 8px 0 0 18px; padding: 0;">
+                    <li>Fetches lattice vectors and atomic positions using a Materials Project ID.</li>
+                    <li>Can use the structure as fetched, primitive standard cell, or conventional standard cell.</li>
+                    <li>Fills CELL_PARAMETERS, ATOMIC_POSITIONS, nat, ntyp, and detected elements.</li>
+                </ul>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+    st.caption(
+        "Optional: fetch lattice vectors and fractional atomic positions using a Materials Project material ID."
+    )
+
+    st.markdown(
+        "[Open Materials Project](https://next-gen.materialsproject.org/) "
+        "to search for a material and copy its material ID, for example `mp-34202`."
+    )
+
+
+
+    use_mp_helper = st.checkbox(
+        "🌐 Enable Materials Project structure fetcher",
+        value=False,
+        help=(
+            "Optional: fetch lattice vectors and fractional atomic positions using a Materials Project material ID. "
+            "Fetched structures are written as CELL_PARAMETERS angstrom and ATOMIC_POSITIONS crystal. "
+            "Use ibrav = 0 for imported structures."
+        ),
+    )
+
+    if use_mp_helper:
+        st.caption(
+            "How to get your Materials Project API key:\n\n"
+            "1. Log in to [Materials Project](https://next-gen.materialsproject.org) or If you are already logged in, go directly to the [Materials Project Dashboard](https://next-gen.materialsproject.org/dashboard).\n"
+            "2. Click the profile/person icon at the top right.\n"
+            "3. Open Dashboard.\n"
+            "4. Find the API key option on the left side.\n"
+            "5. Copy the key and paste it below."
         )
+
+        mp_api_key = st.text_input(
+            "Materials Project API key",
+            type="password",
+            help=(
+                "Create or log in to a Materials Project account, then copy your API key "
+                "from https://next-gen.materialsproject.org/api. "
+                "The key is used only to fetch the requested structure."
+            ),
+        )
+
+        mp_material_id = st.text_input(
+            "Materials Project material ID",
+            value="mp-34202",
+            help="Example: mp-34202",
+        )
+
+        structure_representation = st.selectbox(
+            "Structure representation",
+            [
+                "As fetched from Materials Project",
+                "Primitive standard cell",
+                "Conventional standard cell",
+            ],
+            index=0,
+            help=(
+                "Choose how the fetched structure should be written to Quantum ESPRESSO. "
+                "The primitive standard cell usually contains the smallest repeating unit. "
+                "The conventional standard cell is generated using symmetry standardization "
+                "and may contain more atoms than the fetched or primitive structure."
+            ),
+        )
+
+        st.session_state.mp_structure_representation = structure_representation
+
+        fetch_mp_structure = st.button(
+            "🌐 Fetch structure now",
+            type="primary",
+            use_container_width=True,
+        )
+
+        st.caption("This will fill CELL_PARAMETERS, ATOMIC_POSITIONS, nat, ntyp, and detected elements.")
+
+        if fetch_mp_structure:
+            if not mp_api_key.strip():
+                st.error("Please enter your Materials Project API key.")
+            elif not mp_material_id.strip():
+                st.error("Please enter a Materials Project material ID.")
+            else:
+                try:
+                    fetched_structure = fetch_materials_project_structure(
+                        api_key=mp_api_key,
+                        material_id=mp_material_id,
+                    )
+
+                    structure = apply_structure_representation(
+                        fetched_structure,
+                        structure_representation,
+                    )
+
+                    cell_text = structure_to_qe_cell_parameters(structure)
+                    positions_text = structure_to_qe_atomic_positions(structure)
+                    elements = get_unique_elements_from_structure(structure)
+
+                    cell_text = structure_to_qe_cell_parameters(structure)
+                    positions_text = structure_to_qe_atomic_positions(structure)
+                    elements = get_unique_elements_from_structure(structure)
+
+                    st.session_state.mp_cell_parameters = cell_text
+                    st.session_state.mp_atomic_positions = positions_text
+                    st.session_state.mp_detected_elements = elements
+                    st.session_state.mp_nat = len(structure)
+                    st.session_state.mp_ntyp = len(elements)
+
+                    st.success(
+                        f"Fetched structure for {mp_material_id} "
+                        f"using '{structure_representation}': "
+                        f"nat = {len(structure)}, ntyp = {len(elements)}, "
+                        f"elements = {', '.join(elements)}"
+                    )
+
+                    st.markdown(
+                        f"""
+                        <div class="qe-result-box">
+                            <strong>✅ Fetched structure summary</strong><br><br>
+                            Material ID: <code>{mp_material_id}</code><br>
+                            Representation: <code>{structure_representation}</code><br>
+                            nat: <code>{len(structure)}</code><br>
+                            ntyp: <code>{len(elements)}</code><br>
+                            Elements: <code>{", ".join(elements)}</code>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
+                    st.info(
+                        "Structure data is fetched from [Materials Project](https://next-gen.materialsproject.org/) "
+                        "and processed using the [pymatgen](https://pymatgen.org/) Python library. "
+                        "If `Primitive standard cell` or `Conventional standard cell` is selected, "
+                        "pymatgen converts the fetched structure before the app generates "
+                        "`CELL_PARAMETERS`, `ATOMIC_POSITIONS`, `nat`, and `ntyp`. "
+                        "Values may differ slightly from CIF exports or other software due to "
+                        "cell standardization, relaxation version, symmetry tolerance, and rounding."
+                    )
+
+                except Exception as error:
+                    st.error(f"Could not fetch structure from Materials Project: {error}")
+
+        if st.session_state.mp_nat is not None:
+            st.info(
+                f"Fetched structure summary: "
+                f"representation = {st.session_state.mp_structure_representation}, "
+                f"nat = {st.session_state.mp_nat}, "
+                f"ntyp = {st.session_state.mp_ntyp}, "
+                f"elements = {', '.join(st.session_state.mp_detected_elements)}"
+            )
 
 st.divider()
 # -----------------------------
@@ -3129,7 +3503,7 @@ if custom_calculation_empty:
     validation_errors.append(
         "Custom calculation is selected, but no calculation value was entered."
     )
-    
+
 validation_errors = list(dict.fromkeys(validation_errors))
 validation_warnings = list(dict.fromkeys(validation_warnings))
 
