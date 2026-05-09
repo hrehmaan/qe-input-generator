@@ -1973,16 +1973,40 @@ st.markdown(
 col1, col2 = st.columns(2)
 
 with col1:
-    calculation = st.selectbox(
+    calculation_choice = st.selectbox(
         "calculation",
-        ["scf", "relax", "vc-relax", "nscf", "bands"],
+        ["scf", "relax", "vc-relax", "nscf", "bands", "Other / custom"],
         index=0,
-        help="Type of calculation to perform.",
+        help=(
+            "Choose the Quantum ESPRESSO calculation type. "
+            "Select 'Other / custom' if you want to enter another valid calculation keyword manually."
+        ),
     )
+
+    custom_calculation_empty = False
+
+    if calculation_choice == "Other / custom":
+        custom_calculation = st.text_input(
+            "Enter custom calculation value",
+            value="",
+            placeholder="Example: scf, relax, vc-relax, nscf, bands",
+            help="This value will be written directly as calculation = 'your_value'.",
+        )
+
+        calculation = custom_calculation.strip()
+
+        if not calculation:
+            custom_calculation_empty = True
+            st.warning(
+                "Please enter a custom calculation value, or choose one of the predefined options."
+            )
+    else:
+        calculation = calculation_choice
+
 
     pseudo_dir = st.text_input(
         "pseudo_dir",
-        value="./",
+        value=".",
         help="Folder where pseudopotential files are located.",
     )
 
@@ -3101,6 +3125,11 @@ st.markdown(
     """
 )
 
+if custom_calculation_empty:
+    validation_errors.append(
+        "Custom calculation is selected, but no calculation value was entered."
+    )
+    
 validation_errors = list(dict.fromkeys(validation_errors))
 validation_warnings = list(dict.fromkeys(validation_warnings))
 
